@@ -10,6 +10,7 @@ import {
   listNullsecSystems,
   pruneKillSnapshots,
   recordKillSnapshot,
+  regionKills,
   replaceSovereignty,
   startSyncRun,
   upsertRegionTree,
@@ -141,6 +142,37 @@ test("rejects snapshots for Systems the universe sync has not stored", () => {
   expect(() => {
     recordKillSnapshot(db, new Date(), new Map([[sys(31000001), 1]]));
   }).toThrow(/FOREIGN KEY/);
+});
+
+test("regionKills returns only that Region's in-scope Systems, each with its history oldest first", () => {
+  const db = seed();
+  upsertRegionTree(db, {
+    id: 10000002 as RegionId,
+    name: "Other",
+    constellations: [
+      { id: 20000002 as ConstellationId, name: "Far", systems: [{ id: sys(30000009), name: "Far", securityStatus: -1 }] },
+    ],
+  });
+  const t1 = new Date("2026-11-18T11:00:00Z");
+  const t2 = new Date("2026-11-18T12:00:00Z");
+  recordKillSnapshot(db, t2, new Map([[sys(30000003), 4], [sys(30000009), 8]]));
+  recordKillSnapshot(db, t1, new Map([[sys(30000003), 2]]));
+
+  const { systems, latestRun, latestSuccess } = regionKills(db, 10000001 as RegionId);
+
+  expect(systems.map((s) => [s.name, s.history])).toEqual([
+    ["Zero", []],
+    [
+      "Deep",
+      [
+        { hourEnding: t1, npcKills: 2 },
+        { hourEnding: t2, npcKills: 4 },
+      ],
+    ],
+    ["Empty", []],
+  ]);
+  expect([latestRun, latestSuccess]).toEqual([null, null]);
+  expect(regionKills(db, 10009999 as RegionId).systems).toEqual([]);
 });
 
 test("records sync runs and reports the latest per kind", () => {
