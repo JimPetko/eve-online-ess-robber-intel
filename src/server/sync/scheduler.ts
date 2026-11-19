@@ -28,6 +28,8 @@ export interface SchedulerDeps {
 }
 
 export interface Scheduler {
+  /** When the next kills poll is due; null while one is queued or running, and after stop. */
+  nextKillsPollAt(): Date | null;
   /** Cancels pending syncs and resolves once the one in progress, if any, has finished. */
   stop(): Promise<void>;
 }
@@ -60,6 +62,7 @@ export function startScheduler({
   let stopped = false;
   const pending = new Set<unknown>();
   let running: Promise<void> = Promise.resolve();
+  let nextKillsAt: Date | null = null;
 
   function run(job: () => Promise<void>): void {
     running = running
@@ -89,11 +92,13 @@ export function startScheduler({
   }
 
   async function kills(): Promise<void> {
+    nextKillsAt = null;
     let delay = RETRY_DELAY_MS;
     try {
       delay = nextKillsPollDelay(await pollKills({ esi, db, log, now }), now(), random);
     } finally {
       log(`kills: next poll in ${String(Math.round(delay / 1000))}s`);
+      if (!stopped) nextKillsAt = new Date(now().getTime() + delay);
       later(delay, kills);
     }
   }
@@ -108,8 +113,10 @@ export function startScheduler({
   run(kills);
 
   return {
+    nextKillsPollAt: () => nextKillsAt,
     stop() {
       stopped = true;
+      nextKillsAt = null;
       for (const handle of pending) timers.clearTimeout(handle);
       pending.clear();
       return running;

@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { buildApp } from "./app.ts";
 import { loadConfig } from "./config.ts";
 import { createEsi } from "./esi/client.ts";
@@ -20,9 +21,11 @@ const scheduler = startScheduler({
   },
 });
 
-const app = buildApp();
+// Same relative path from src/server and dist/server.
+const webRoot = fileURLToPath(new URL("../../dist/web", import.meta.url));
+const app = buildApp({ db, nextPullAt: () => scheduler.nextKillsPollAt(), webRoot });
 const address = await app.listen({ port, host });
-console.log(`API listening on ${address}`);
+console.log(`Listening on ${address}`);
 
 async function shutdown(signal: string): Promise<void> {
   console.log(`${signal}: shutting down`);

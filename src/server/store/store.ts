@@ -5,6 +5,7 @@ import type {
   FactionId,
   HourlyKills,
   RegionId,
+  RegionSummary,
   SystemId,
 } from "../../domain/index.ts";
 import { transaction } from "./db.ts";
@@ -135,6 +136,21 @@ export function listNullsecSystems(db: DatabaseSync, regionId?: RegionId): Nulls
   });
 }
 
+/** Regions holding at least one in-scope System, by name. */
+export function listNullsecRegions(db: DatabaseSync): RegionSummary[] {
+  return db
+    .prepare(
+      `SELECT region_id, region_name, COUNT(*) AS n FROM nullsec_systems
+       GROUP BY region_id, region_name ORDER BY region_name`,
+    )
+    .all()
+    .map((row) => ({
+      id: num(row, "region_id") as RegionId,
+      name: str(row, "region_name"),
+      nullsecSystemCount: num(row, "n"),
+    }));
+}
+
 export const SNAPSHOT_RETENTION_DAYS = 30;
 
 /**
@@ -196,16 +212,24 @@ export interface SyncRun {
   readonly esiLastModified: Date | null;
 }
 
-export function latestSyncRun(db: DatabaseSync, kind: SyncKind): SyncRun | null {
-  const row = db.prepare("SELECT * FROM sync_runs WHERE kind = ? ORDER BY started_at DESC, id DESC LIMIT 1").get(kind);
+function latestRunWhere(db: DatabaseSync, kind: SyncKind, condition: string): SyncRun | null {
+  const row = db
+    .prepare(`SELECT * FROM sync_runs WHERE kind = ? AND ${condition} ORDER BY started_at DESC, id DESC LIMIT 1`)
+    .get(kind);
   return row === undefined ? null : syncRun(row, kind);
 }
 
+/** Includes a run still in progress. */
+export function latestSyncRun(db: DatabaseSync, kind: SyncKind): SyncRun | null {
+  return latestRunWhere(db, kind, "1");
+}
+
+export function latestFinishedSyncRun(db: DatabaseSync, kind: SyncKind): SyncRun | null {
+  return latestRunWhere(db, kind, "finished_at IS NOT NULL");
+}
+
 export function latestSuccessfulSyncRun(db: DatabaseSync, kind: SyncKind): SyncRun | null {
-  const row = db
-    .prepare("SELECT * FROM sync_runs WHERE kind = ? AND ok = 1 ORDER BY started_at DESC, id DESC LIMIT 1")
-    .get(kind);
-  return row === undefined ? null : syncRun(row, kind);
+  return latestRunWhere(db, kind, "ok = 1");
 }
 
 function syncRun(row: Row, kind: SyncKind): SyncRun {
@@ -232,7 +256,7 @@ export interface SystemKillHistory extends NullsecSystem {
 export interface RegionKills {
   /** Every in-scope System in the Region, ordered by id. Empty for an unknown Region. */
   readonly systems: readonly SystemKillHistory[];
-  /** The most recent kills poll, successful or not; null before the first. */
+  /** The most recent finished kills poll, successful or not; null before the first finishes. */
   readonly latestRun: SyncRun | null;
   /** The most recent successful kills poll; its esiLastModified is "data as of". */
   readonly latestSuccess: SyncRun | null;
@@ -243,9 +267,10 @@ export function regionKills(db: DatabaseSync, regionId: RegionId): RegionKills {
   const histories = new Map<number, HourlyKills[]>();
   const rows = db
     .prepare(
-      `SELECT k.system_id, k.pulled_at, k.npc_kills
-       FROM kill_snapshots k JOIN nullsec_systems s ON s.id = k.system_id
-       WHERE s.region_id = ? ORDER BY k.system_id, k.pulled_at`,
+      // IN, not a join, so SQLite seeks the index per System instead of scanning every stored snapshot.
+      `SELECT system_id, pulled_at, npc_kills FROM kill_snapshots
+       WHERE system_id IN (SELECT id FROM nullsec_systems WHERE region_id = ?)
+       ORDER BY system_id, pulled_at`,
     )
     .all(regionId);
   for (const row of rows) {
@@ -257,7 +282,7 @@ export function regionKills(db: DatabaseSync, regionId: RegionId): RegionKills {
   }
   return {
     systems: listNullsecSystems(db, regionId).map((system) => ({ ...system, history: histories.get(system.id) ?? [] })),
-    latestRun: latestSyncRun(db, "kills"),
+    latestRun: latestFinishedSyncRun(db, "kills"),
     latestSuccess: latestSuccessfulSyncRun(db, "kills"),
   };
 }

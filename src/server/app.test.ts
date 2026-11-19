@@ -1,10 +1,260 @@
-import { expect, test } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, expect, test } from "vitest";
+import {
+  constellationId,
+  type AllianceId,
+  isk,
+  regionId,
+  systemId,
+  type RegionList,
+  type RegionView,
+  type SyncStatus,
+} from "../domain/index.ts";
 import { buildApp } from "./app.ts";
+import { openDb } from "./store/db.ts";
+import { finishSyncRun, recordKillSnapshot, replaceSovereignty, startSyncRun, upsertRegionTree } from "./store/store.ts";
+
+const HOUR = 3_600_000;
+const M = 1_000_000;
+/** The latest pull. */
+const T = new Date("2026-11-18T12:00:00Z");
+const hoursBefore = (n: number) => new Date(T.getTime() - n * HOUR);
+const NEXT_PULL = new Date("2026-11-18T13:00:20Z");
+
+const DELVE = regionId(10000060);
+const BUSY = systemId(30004759);
+const FRESH = systemId(30004760);
+const QUIET = systemId(30004761);
+
+function seed() {
+  const db = openDb(":memory:");
+  upsertRegionTree(db, {
+    id: DELVE,
+    name: "Delve",
+    constellations: [
+      {
+        id: constellationId(20000696),
+        name: "O-EIMK",
+        systems: [
+          { id: BUSY, name: "1DQ1-A", securityStatus: -0.5 },
+          { id: FRESH, name: "T5ZI-S", securityStatus: -0.1 },
+        ],
+      },
+      { id: constellationId(20000694), name: "1P-VL2", systems: [{ id: QUIET, name: "PUIG-F", securityStatus: -0.9 }] },
+    ],
+  });
+  upsertRegionTree(db, {
+    id: regionId(10000001),
+    name: "Derelik",
+    constellations: [
+      { id: constellationId(20000001), name: "Kalevala", systems: [{ id: systemId(30000001), name: "Hi", securityStatus: 0.5 }] },
+    ],
+  });
+  upsertRegionTree(db, {
+    id: regionId(10000002),
+    name: "Catch",
+    constellations: [
+      { id: constellationId(20000002), name: "Far", systems: [{ id: systemId(30000009), name: "Far", securityStatus: -0.3 }] },
+    ],
+  });
+  replaceSovereignty(db, [{ systemId: BUSY, allianceId: 1354830081 as AllianceId, factionId: null }]);
+  return db;
+}
+
+/** A successful poll a minute after ESI stamped `pulledAt`, storing `kills` as [System, NPC kills]. */
+function pull(db: ReturnType<typeof openDb>, pulledAt: Date, kills: [number, number][]) {
+  recordKillSnapshot(db, pulledAt, new Map(kills.map(([id, n]) => [systemId(id), n])));
+  const run = startSyncRun(db, "kills", new Date(pulledAt.getTime() + 60_000));
+  finishSyncRun(db, run, new Date(pulledAt.getTime() + 62_000), { ok: true, esiLastModified: pulledAt });
+}
+
+const apps: { close(): Promise<unknown> }[] = [];
+afterEach(async () => {
+  await Promise.all(apps.splice(0).map((a) => a.close()));
+});
+
+function app(db = seed(), options: { webRoot?: string } = {}) {
+  const instance = buildApp({ db, nextPullAt: () => NEXT_PULL, ...options });
+  apps.push(instance);
+  return instance;
+}
+
+async function get(instance: ReturnType<typeof app>, url: string) {
+  return instance.inject({ method: "GET", url });
+}
 
 test("GET /api/health reports ok", async () => {
-  const app = buildApp();
-  const res = await app.inject({ method: "GET", url: "/api/health" });
+  const res = await get(app(), "/api/health");
   expect(res.statusCode).toBe(200);
   expect(res.json()).toEqual({ ok: true });
-  await app.close();
+});
+
+test("GET /api/regions lists Regions with in-scope Systems, by name", async () => {
+  const res = await get(app(), "/api/regions");
+  expect(res.statusCode).toBe(200);
+  expect(res.json()).toEqual({
+    regions: [
+      { id: regionId(10000002), name: "Catch", nullsecSystemCount: 1 },
+      { id: DELVE, name: "Delve", nullsecSystemCount: 3 },
+    ],
+  } satisfies RegionList);
+});
+
+test("GET /api/regions/:id computes ceilings, previous ceiling, Robber Take and Reserve per System", async () => {
+  const db = seed();
+  // BUSY has four full hours; FRESH only the latest; QUIET none at all.
+  pull(db, hoursBefore(3), [[BUSY, 10]]);
+  pull(db, hoursBefore(2), [[BUSY, 20]]);
+  pull(db, hoursBefore(1), [[BUSY, 30]]);
+  pull(db, T, [
+    [BUSY, 40],
+    [FRESH, 6],
+  ]);
+
+  const res = await get(app(db), `/api/regions/${String(DELVE)}`);
+
+  expect(res.statusCode).toBe(200);
+  // -0.5 is 800k ISK per kill, 40% to the Main Bank, over hours weighted [1, 1, 0.75] latest first.
+  expect(res.json()).toEqual({
+    region: { id: DELVE, name: "Delve" },
+    sync: {
+      lastSuccessAt: new Date(T.getTime() + 62_000).toISOString(),
+      lastAttempt: { at: new Date(T.getTime() + 62_000).toISOString(), ok: true },
+      dataAsOf: T.toISOString(),
+      nextPullAt: NEXT_PULL.toISOString(),
+    },
+    constellations: [
+      { id: constellationId(20000694), name: "1P-VL2" },
+      { id: constellationId(20000696), name: "O-EIMK" },
+    ],
+    systems: [
+      {
+        id: BUSY,
+        name: "1DQ1-A",
+        constellationId: constellationId(20000696),
+        securityStatus: -0.5,
+        sovKind: "sov",
+        // (40 + 30 + 0.75 * 20) * 800k * 0.4
+        mainBank: { status: "ready", ceiling: isk(27.2 * M) },
+        // (30 + 20 + 0.75 * 10) * 800k * 0.4
+        previousMainBank: { status: "ready", ceiling: isk(18.4 * M) },
+        robberTake: isk(21.76 * M),
+        // 100 kills * 800k at 5% and 20%
+        reserve: { low: isk(4 * M), high: isk(16 * M), hoursCovered: 4 },
+      },
+      {
+        id: FRESH,
+        name: "T5ZI-S",
+        constellationId: constellationId(20000696),
+        securityStatus: -0.1,
+        sovKind: "unclaimed",
+        mainBank: { status: "warmingUp", ceiling: isk(1.2 * M), hoursCovered: 1, hoursNeeded: 3 },
+        previousMainBank: null,
+        robberTake: isk(0.96 * M),
+        reserve: { low: isk(0.15 * M), high: isk(0.6 * M), hoursCovered: 1 },
+      },
+      {
+        id: QUIET,
+        name: "PUIG-F",
+        constellationId: constellationId(20000694),
+        securityStatus: -0.9,
+        sovKind: "unclaimed",
+        mainBank: { status: "warmingUp", ceiling: isk(0), hoursCovered: 0, hoursNeeded: 3 },
+        previousMainBank: null,
+        robberTake: isk(0),
+        reserve: { low: isk(0), high: isk(0), hoursCovered: 0 },
+      },
+    ],
+  } satisfies RegionView);
+});
+
+test("the previous ceiling is Warming Up while the history before the latest pull is short", async () => {
+  const db = seed();
+  pull(db, hoursBefore(2), [[BUSY, 10]]);
+  pull(db, hoursBefore(1), [[BUSY, 10]]);
+  pull(db, T, [[BUSY, 10]]);
+
+  const busy = (await get(app(db), `/api/regions/${String(DELVE)}`)).json<RegionView>().systems[0];
+
+  expect(busy?.mainBank).toEqual({ status: "ready", ceiling: isk(8.8 * M) });
+  expect(busy?.previousMainBank).toEqual({ status: "warmingUp", ceiling: isk(6.4 * M), hoursCovered: 2, hoursNeeded: 3 });
+});
+
+test.each([
+  ["non-numeric", "delve", 400],
+  ["negative", "-1", 400],
+  ["fractional", "10000060.5", 400],
+  ["unknown", "10009999", 404],
+  ["out of scope (no nullsec)", "10000001", 404],
+])("GET /api/regions/:id rejects a %s id", async (_, id, status) => {
+  const res = await get(app(), `/api/regions/${id}`);
+  expect(res.statusCode).toBe(status);
+  expect(res.json()).toEqual({ error: expect.any(String) as unknown });
+});
+
+async function syncOf(db: ReturnType<typeof openDb>): Promise<SyncStatus> {
+  return (await get(app(db), `/api/regions/${String(DELVE)}`)).json<RegionView>().sync;
+}
+
+test("sync status before any poll has finished", async () => {
+  const db = seed();
+  startSyncRun(db, "kills", T); // in flight
+
+  expect(await syncOf(db)).toEqual({
+    lastSuccessAt: null,
+    lastAttempt: null,
+    dataAsOf: null,
+    nextPullAt: NEXT_PULL.toISOString(),
+  } satisfies SyncStatus);
+});
+
+test("sync status after the last poll failed keeps the last success's data time", async () => {
+  const db = seed();
+  pull(db, hoursBefore(1), [[BUSY, 10]]);
+  const failed = startSyncRun(db, "kills", T);
+  finishSyncRun(db, failed, new Date(T.getTime() + 5_000), { ok: false, error: "ESI 503", esiLastModified: null });
+  startSyncRun(db, "kills", new Date(T.getTime() + 300_000)); // retry in flight
+
+  expect(await syncOf(db)).toEqual({
+    lastSuccessAt: new Date(hoursBefore(1).getTime() + 62_000).toISOString(),
+    lastAttempt: { at: new Date(T.getTime() + 5_000).toISOString(), ok: false, error: "ESI 503" },
+    dataAsOf: hoursBefore(1).toISOString(),
+    nextPullAt: NEXT_PULL.toISOString(),
+  } satisfies SyncStatus);
+});
+
+test("sync status reports no next pull while one is in flight", async () => {
+  const instance = buildApp({ db: seed(), nextPullAt: () => null });
+  apps.push(instance);
+  expect((await get(instance, `/api/regions/${String(DELVE)}`)).json<RegionView>().sync.nextPullAt).toBeNull();
+});
+
+test("serves the built UI, with the app shell for client routes and JSON 404s under /api", async () => {
+  const webRoot = mkdtempSync(join(tmpdir(), "ess-web-"));
+  try {
+    mkdirSync(join(webRoot, "assets"));
+    writeFileSync(join(webRoot, "index.html"), "<!doctype html><title>ESS</title>");
+    writeFileSync(join(webRoot, "assets", "index-abc.js"), "console.log(1)");
+    const instance = app(seed(), { webRoot });
+
+    const index = await get(instance, "/");
+    expect([index.statusCode, index.headers["content-type"], index.body]).toEqual([
+      200,
+      "text/html; charset=utf-8",
+      "<!doctype html><title>ESS</title>",
+    ]);
+    const asset = await get(instance, "/assets/index-abc.js");
+    expect([asset.statusCode, asset.headers["content-type"]]).toEqual([200, expect.stringMatching(/javascript/)]);
+    expect((await get(instance, "/regions/delve")).body).toBe("<!doctype html><title>ESS</title>");
+    const api = await get(instance, "/api/nope");
+    expect([api.statusCode, api.headers["content-type"]]).toEqual([404, "application/json; charset=utf-8"]);
+  } finally {
+    rmSync(webRoot, { recursive: true, force: true });
+  }
+});
+
+test("without a built UI only the API is served", async () => {
+  expect((await get(app(), "/")).statusCode).toBe(404);
 });

@@ -157,6 +157,16 @@ test("keeps both syncs scheduled when recording a sync run throws", async () => 
   });
 });
 
+test("reports when the next kills poll is due", async () => {
+  const h = harness();
+  const scheduler = startScheduler(h);
+  expect(scheduler.nextKillsPollAt()).toBeNull();
+
+  await vi.waitFor(() => {
+    expect(scheduler.nextKillsPollAt()).toEqual(new Date(START.getTime() + killsDelay));
+  });
+});
+
 test("stop cancels pending syncs", async () => {
   const h = harness();
   const scheduler = startScheduler(h);
@@ -167,4 +177,5 @@ test("stop cancels pending syncs", async () => {
   await scheduler.stop();
 
   expect(h.delays()).toEqual([]);
+  expect(scheduler.nextKillsPollAt()).toBeNull();
 });
