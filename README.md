@@ -77,6 +77,10 @@ All responses are JSON. The types are in `src/domain/region-view.ts`.
 | `npm run typecheck` | Type-checks every project. |
 | `npm run lint` | Runs ESLint. |
 
+## Contributing
+
+A PR that changes code under `src/` must also change a `*.test.ts(x)`, or CI's `tests-required` job fails. Label the PR `no-tests-needed` only when it changes no behaviour. Merge only with `node scripts/merge-pr.mjs <pr-number>`. See `CLAUDE.md`.
+
 ## Data source etiquette
 
 The scheduled poller is the only code that calls ESI. Browsers call only this API.
