@@ -14,11 +14,13 @@ const hour = (h: number, npcKills: number) => ({
   npcKills,
 });
 
-test("sums all history at the low and high fill share", () => {
-  // 100 kills at 500k ISK = 50M ISK of bounties at 5% and 10%; gaps do not matter.
+test("grosses up net bounties by the low and high fill share", () => {
+  // 100 kills at 500k ISK = 50M ISK net of the Reserve share; gaps do not matter.
+  // Gross = net / (1 - r), so the Reserve gains 50M x 0.05/0.95 and 50M x 0.10/0.90.
+  // At r = 0.10 that is 11.11% of the net figure, not 10%.
   expect(reserveBankEstimate([hour(0, 40), hour(5, 0), hour(9, 60)], REGION, ASSUMPTIONS)).toEqual({
-    low: 2_500_000,
-    high: 5_000_000,
+    low: 2_631_579,
+    high: 5_555_556,
     hoursCovered: 3,
   });
 });

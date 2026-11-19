@@ -39,7 +39,7 @@ The sentence describes only Systems at the DBS floor. Before 20.02 a floor Syste
 
 ## Main Bank share: 0.40
 
-Main Bank autopay ÷ sov-null bounty ≈ 30.7 / 75.9 ≈ 0.40, or 30.7 / (48.7 + 30.7) ≈ 0.39. Autopay misses banks that were robbed, so the share generated is at least that. This rules out the 0.35 player figure, which would give at most 0.37 even with no Robberies, and matches the EVE University wiki's "40% of the bounties". Confidence medium-high.
+Main Bank autopay ÷ sov-null `npc_bounties` ≈ 30.7 / 75.9 ≈ 0.40, or 30.7 / (48.7 + 30.7) ≈ 0.39. Autopay misses banks that were robbed, so the share generated is at least that. This rules out the 0.35 player figure, which would give at most 0.37 even with no Robberies, and matches the EVE University wiki's "40% of the bounties". So the 0.40 is a share of `npc_bounties`, the same base as ISK per kill, and the Main Bank Ceiling applies it to ISK per kill directly. Confidence medium-high.
 
 ## The DBS needs no factor
 
@@ -103,6 +103,8 @@ A non-negative least-squares fit of the same data by true-security band (0.0 to 
 ## Reserve fill share: 0.05 to 0.10
 
 CCP says only "a smaller portion" of each bounty (18.11) and "a small part" (Grand Heist). The one player figure is a 35/5 Main/Reserve split ([forum](https://forums.eveonline.com/t/ess-payout/332417)). The old 0.20 upper bound assumed a 40% ESS cut split equally between the banks ([forum](https://forums.eveonline.com/t/brm-ess-isk-payouts/361667)). The MER shows the Main Bank alone takes about 0.40, which rules that split out. The band is now 0.05 to 0.10, the high end left at twice the only figure. Confidence low. The MER cannot measure it, because `npc_bounties` excludes the Reserve share.
+
+The fill share r is a share of the gross bounty. ISK per kill, calibrated from `npc_bounties`, covers only the other (1 − r) of it, so Reserve accrual is kills × ISK per kill × r / (1 − r): 5.26% of the net figure at r = 0.05 and 11.11% at r = 0.10.
 
 ## Robber Take: 0.80
 

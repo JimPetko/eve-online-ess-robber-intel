@@ -202,8 +202,8 @@ test("GET /api/regions/:id computes ceilings, previous ceiling, Robber Take and 
         // 30 + 20 + 0.75 * 10 = 57.5 weighted kills
         previousMainBank: { status: "ready", ceiling: isk(57.5 * DELVE_ISK * 0.4) },
         robberTake: isk(isk(85 * DELVE_ISK * 0.4) * 0.8),
-        // 100 kills at 5% and 10%
-        reserve: { low: isk(100 * DELVE_ISK * 0.05), high: isk(100 * DELVE_ISK * 0.1), hoursCovered: 4 },
+        // 100 kills grossed up at 5% and 10%: r / (1 - r) of the net ISK per kill
+        reserve: { low: isk((100 * DELVE_ISK * 0.05) / 0.95), high: isk((100 * DELVE_ISK * 0.1) / 0.9), hoursCovered: 4 },
       },
       {
         id: FRESH,
@@ -213,7 +213,7 @@ test("GET /api/regions/:id computes ceilings, previous ceiling, Robber Take and 
         mainBank: { status: "warmingUp", ceiling: isk(6 * DELVE_ISK * 0.4), hoursCovered: 1, hoursNeeded: 3 },
         previousMainBank: null,
         robberTake: isk(isk(6 * DELVE_ISK * 0.4) * 0.8),
-        reserve: { low: isk(6 * DELVE_ISK * 0.05), high: isk(6 * DELVE_ISK * 0.1), hoursCovered: 1 },
+        reserve: { low: isk((6 * DELVE_ISK * 0.05) / 0.95), high: isk((6 * DELVE_ISK * 0.1) / 0.9), hoursCovered: 1 },
       },
       {
         id: QUIET,

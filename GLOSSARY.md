@@ -49,7 +49,7 @@ This tool's low–high band for how much ISK a Reserve Bank has gained during th
 _Avoid_: Reserve value, reserve balance (implies measured)
 
 **Bounty Assumptions**:
-The tunable figures that turn NPC kill counts into ISK: ISK per NPC kill by Region (calibrated monthly from CCP's Monthly Economic Report, with a pooled fallback), the Payout Cycle length, the Main Bank share of bounties, the Robber Take share, and the reserve fill share band.
+The tunable figures that turn NPC kill counts into ISK: ISK per NPC kill by Region (calibrated monthly from CCP's Monthly Economic Report, with a pooled fallback), the Payout Cycle length, the Main Bank share of those bounties, the Robber Take share, and the reserve fill share band (a share of the gross bounty, which ISK per NPC kill excludes).
 _Avoid_: Magic numbers, constants
 
 **Warming Up**:
