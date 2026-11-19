@@ -32,9 +32,10 @@ export function buildApp({ db, nextPullAt, webRoot }: AppDeps): FastifyInstance 
 
   if (webRoot !== undefined && existsSync(join(webRoot, "index.html"))) {
     void app.register(fastifyStatic, { root: webRoot, wildcard: false });
-    // Client-side routes get the app shell; unknown API paths stay 404s.
+    // Client-side routes get the app shell; unknown API paths and missing files stay 404s.
     app.setNotFoundHandler((request, reply) => {
-      if (request.method !== "GET" || request.url.startsWith("/api/")) {
+      const path = request.url.split("?")[0] ?? "";
+      if (request.method !== "GET" || path.startsWith("/api/") || /\.[^/]*$/.test(path)) {
         return reply.code(404).send({ error: `no route ${request.method} ${request.url}` });
       }
       return reply.sendFile("index.html");

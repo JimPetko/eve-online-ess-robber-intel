@@ -67,6 +67,11 @@ const MIGRATIONS: readonly string[] = [
   DELETE FROM constellations WHERE region_id IN (10000004, 10000017, 10000019);
   DELETE FROM regions WHERE id IN (10000004, 10000017, 10000019);
   `,
+  // Covering, so reading a Region's history never seeks back into the table for npc_kills.
+  `
+  DROP INDEX kill_snapshots_system;
+  CREATE INDEX kill_snapshots_system ON kill_snapshots(system_id, pulled_at, npc_kills);
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
