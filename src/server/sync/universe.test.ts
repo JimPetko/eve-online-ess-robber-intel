@@ -53,7 +53,7 @@ function fakeEsi(overrides: Record<string, number> = {}) {
   return { esi, requested };
 }
 
-test("stores nullsec Systems with sovereignty and skips wormhole space, Pochven and Jove space", async () => {
+test("puts only sov-held nullsec in scope and skips wormhole space, Pochven and Jove space", async () => {
   const db = openDb(":memory:");
   const { esi, requested } = fakeEsi();
 
@@ -64,8 +64,7 @@ test("stores nullsec Systems with sovereignty and skips wormhole space, Pochven 
   expect(requested).not.toContain("/universe/regions/10000070");
   expect(requested).not.toContain("/universe/regions/11000001");
   expect(listNullsecSystems(db)).toEqual([
-    expect.objectContaining({ id: 30000002, constellationName: "Kalevala", sovKind: "npc", essPresenceUnconfirmed: true }),
-    expect.objectContaining({ id: 30000003, constellationName: "Mossas", sovKind: "sov", sovAllianceId: 99000001 }),
+    expect.objectContaining({ id: 30000003, constellationName: "Mossas", sovAllianceId: 99000001 }),
   ]);
   expect(latestSyncRun(db, "universe")).toMatchObject({
     ok: true,
@@ -97,13 +96,18 @@ test("a Region that fails is not half-stored and is fetched on the next run", as
 
   const retry = await syncUniverse({ esi: fakeEsi().esi, db });
   expect(retry).toMatchObject({ ok: true, regionsFetched: 1 });
-  expect(listNullsecSystems(db).map((s) => s.id)).toEqual([30000002, 30000003]);
+  expect(listNullsecSystems(db).map((s) => s.id)).toEqual([30000003]);
 });
 
-test("a failed sovereignty fetch fails the run but keeps the static data", async () => {
+test("a failed sovereignty fetch fails the run, leaves nothing in scope, and keeps the static data", async () => {
   const db = openDb(":memory:");
   const result = await syncUniverse({ esi: fakeEsi({ "/sovereignty/map": 500 }).esi, db });
 
   expect(result).toMatchObject({ ok: false, regionsFetched: 1 });
-  expect(listNullsecSystems(db).map((s) => s.sovKind)).toEqual([null, null]);
+  expect(listNullsecSystems(db)).toEqual([]);
+
+  const { esi, requested } = fakeEsi();
+  expect(await syncUniverse({ esi, db })).toMatchObject({ ok: true, regionsFetched: 0 });
+  expect(requested).toEqual(["/universe/regions", "/sovereignty/map"]);
+  expect(listNullsecSystems(db).map((s) => s.id)).toEqual([30000003]);
 });

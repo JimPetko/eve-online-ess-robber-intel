@@ -32,6 +32,7 @@ function seed() {
           { id: sys(30000002), name: "Zero", securityStatus: 0 },
           { id: sys(30000003), name: "Deep", securityStatus: -0.4 },
           { id: sys(30000004), name: "Empty", securityStatus: -0.1 },
+          { id: sys(30000005), name: "Held", securityStatus: -0.2 },
         ],
       },
     ],
@@ -75,6 +76,7 @@ test("upgrading a database drops Jove Regions stored before they were out of sco
     upsertRegionTree(old, tree(10000001, 20000001, 30000001));
     upsertRegionTree(old, tree(10000017, 20000201, 30001401));
     recordKillSnapshot(old, new Date(), new Map([[sys(30000001), 3], [sys(30001401), 9]]));
+    replaceSovereignty(old, [{ systemId: sys(30000001), allianceId: 99000001 as AllianceId, factionId: null }]);
     old.exec("PRAGMA user_version = 1");
     old.close();
 
@@ -88,39 +90,44 @@ test("upgrading a database drops Jove Regions stored before they were out of sco
   }
 });
 
-test("lists only nullsec Systems, with sovereignty and ESS Presence Unconfirmed", () => {
+test("lists only sov-held nullsec Systems: not NPC, unclaimed, or before sovereignty is known", () => {
   const db = seed();
-  expect(listNullsecSystems(db).map((s) => s.sovKind)).toEqual([null, null, null]);
+  expect(listNullsecSystems(db)).toEqual([]);
 
   replaceSovereignty(db, [
     { systemId: sys(30000001), allianceId: null, factionId: 500001 as FactionId },
     { systemId: sys(30000002), allianceId: null, factionId: 500001 as FactionId },
     { systemId: sys(30000003), allianceId: 99000001 as AllianceId, factionId: null },
+    { systemId: sys(30000005), allianceId: 99000002 as AllianceId, factionId: null },
   ]);
 
   expect(listNullsecSystems(db, 10000001 as RegionId)).toEqual([
-    expect.objectContaining({ id: 30000002, sovKind: "npc", sovFactionId: 500001, essPresenceUnconfirmed: true }),
-    expect.objectContaining({ id: 30000003, sovKind: "sov", sovAllianceId: 99000001, essPresenceUnconfirmed: false }),
-    expect.objectContaining({
-      id: 30000004,
-      name: "Empty",
+    {
+      id: 30000003,
+      name: "Deep",
+      securityStatus: -0.4,
+      constellationId: 20000001,
       constellationName: "Kalevala",
+      regionId: 10000001,
       regionName: "Derelik",
-      sovKind: "unclaimed",
-      essPresenceUnconfirmed: false,
-    }),
+      sovAllianceId: 99000001,
+    },
+    expect.objectContaining({ id: 30000005, sovAllianceId: 99000002 }),
   ]);
   expect(listNullsecSystems(db, 10000002 as RegionId)).toEqual([]);
 });
 
-test("a refreshed sovereignty map replaces the previous one", () => {
+test("a System that loses sovereignty at the next refresh drops out of scope, and returns when it is retaken", () => {
   const db = seed();
-  replaceSovereignty(db, [{ systemId: sys(30000003), allianceId: 99000001 as AllianceId, factionId: null }]);
+  const held = [{ systemId: sys(30000003), allianceId: 99000001 as AllianceId, factionId: null }];
+  replaceSovereignty(db, held);
+  expect(listNullsecSystems(db).map((s) => s.id)).toEqual([30000003]);
+
   replaceSovereignty(db, []);
-  expect(listNullsecSystems(db).find((s) => s.id === sys(30000003))).toMatchObject({
-    sovKind: "unclaimed",
-    sovAllianceId: null,
-  });
+  expect(listNullsecSystems(db)).toEqual([]);
+
+  replaceSovereignty(db, held);
+  expect(listNullsecSystems(db).map((s) => s.id)).toEqual([30000003]);
 });
 
 test("prunes kill snapshots older than 30 days", () => {
@@ -153,9 +160,14 @@ test("regionKills returns only that Region's in-scope Systems, each with its his
       { id: 20000002 as ConstellationId, name: "Far", systems: [{ id: sys(30000009), name: "Far", securityStatus: -1 }] },
     ],
   });
+  const alliance = 99000001 as AllianceId;
+  replaceSovereignty(
+    db,
+    [30000002, 30000003, 30000009].map((id) => ({ systemId: sys(id), allianceId: alliance, factionId: null })),
+  );
   const t1 = new Date("2026-11-18T11:00:00Z");
   const t2 = new Date("2026-11-18T12:00:00Z");
-  recordKillSnapshot(db, t2, new Map([[sys(30000003), 4], [sys(30000009), 8]]));
+  recordKillSnapshot(db, t2, new Map([[sys(30000003), 4], [sys(30000004), 6], [sys(30000009), 8]]));
   recordKillSnapshot(db, t1, new Map([[sys(30000003), 2]]));
 
   const { systems, latestRun, latestSuccess } = regionKills(db, 10000001 as RegionId);
@@ -169,7 +181,6 @@ test("regionKills returns only that Region's in-scope Systems, each with its his
         { hourEnding: t2, npcKills: 4 },
       ],
     ],
-    ["Empty", []],
   ]);
   expect([latestRun, latestSuccess]).toEqual([null, null]);
   expect(regionKills(db, 10009999 as RegionId).systems).toEqual([]);

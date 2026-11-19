@@ -15,7 +15,7 @@ const MIGRATIONS: readonly string[] = [
     name      TEXT NOT NULL
   );
   -- Every k-space System is kept so later syncs know what they already fetched.
-  -- Scope (true security <= 0.0) is applied by the nullsec_systems view.
+  -- Scope (sov-held nullsec) is applied by the nullsec_systems view.
   CREATE TABLE systems (
     id               INTEGER PRIMARY KEY,
     constellation_id INTEGER NOT NULL REFERENCES constellations(id),
@@ -71,6 +71,19 @@ const MIGRATIONS: readonly string[] = [
   `
   DROP INDEX kill_snapshots_system;
   CREATE INDEX kill_snapshots_system ON kill_snapshots(system_id, pulled_at, npc_kills);
+  `,
+  // Only sov-held nullsec has an ESS, so NPC and unclaimed Systems leave scope, as does a System
+  // whose sovereignty is not yet known. Their rows stay; only the view stops returning them.
+  `
+  DROP VIEW nullsec_systems;
+  CREATE VIEW nullsec_systems AS
+    SELECT s.id, s.name, s.security_status, s.sov_kind, s.sov_alliance_id,
+           c.id AS constellation_id, c.name AS constellation_name,
+           r.id AS region_id, r.name AS region_name
+    FROM systems s
+    JOIN constellations c ON c.id = s.constellation_id
+    JOIN regions r ON r.id = c.region_id
+    WHERE s.security_status <= 0.0 AND s.sov_kind = 'sov';
   `,
 ];
 

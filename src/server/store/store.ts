@@ -98,42 +98,29 @@ export interface NullsecSystem {
   readonly constellationName: string;
   readonly regionId: RegionId;
   readonly regionName: string;
-  /** null until sovereignty has been refreshed since the System was stored. */
-  readonly sovKind: SovKind | null;
-  readonly sovAllianceId: AllianceId | null;
-  readonly sovFactionId: FactionId | null;
-  /** NPC nullsec: an ESS is not verified to exist. */
-  readonly essPresenceUnconfirmed: boolean;
+  /** The alliance holding sovereignty, which is what puts an ESS in the System. */
+  readonly sovAllianceId: AllianceId;
 }
 
-function sovKind(row: Row): SovKind | null {
-  const value = row.sov_kind;
-  if (value === null || value === "sov" || value === "npc" || value === "unclaimed") return value ?? null;
-  throw new Error(`column sov_kind: unexpected ${String(value)}`);
-}
-
-/** Every in-scope System (k-space, true security <= 0.0), optionally limited to one Region. */
+/**
+ * Every in-scope System (k-space, true security <= 0.0, sov-held as of the last sovereignty
+ * refresh), optionally limited to one Region.
+ */
 export function listNullsecSystems(db: DatabaseSync, regionId?: RegionId): NullsecSystem[] {
   const rows =
     regionId === undefined
       ? db.prepare("SELECT * FROM nullsec_systems ORDER BY id").all()
       : db.prepare("SELECT * FROM nullsec_systems WHERE region_id = ? ORDER BY id").all(regionId);
-  return rows.map((row) => {
-    const kind = sovKind(row);
-    return {
-      id: num(row, "id") as SystemId,
-      name: str(row, "name"),
-      securityStatus: num(row, "security_status"),
-      constellationId: num(row, "constellation_id") as ConstellationId,
-      constellationName: str(row, "constellation_name"),
-      regionId: num(row, "region_id") as RegionId,
-      regionName: str(row, "region_name"),
-      sovKind: kind,
-      sovAllianceId: numOrNull(row, "sov_alliance_id") as AllianceId | null,
-      sovFactionId: numOrNull(row, "sov_faction_id") as FactionId | null,
-      essPresenceUnconfirmed: kind === "npc",
-    };
-  });
+  return rows.map((row) => ({
+    id: num(row, "id") as SystemId,
+    name: str(row, "name"),
+    securityStatus: num(row, "security_status"),
+    constellationId: num(row, "constellation_id") as ConstellationId,
+    constellationName: str(row, "constellation_name"),
+    regionId: num(row, "region_id") as RegionId,
+    regionName: str(row, "region_name"),
+    sovAllianceId: num(row, "sov_alliance_id") as AllianceId,
+  }));
 }
 
 /** Regions holding at least one in-scope System, by name. */

@@ -1,12 +1,13 @@
 import { expect, test } from "vitest";
-import { constellationId, regionId, systemId } from "../../domain/index.ts";
+import { type AllianceId, constellationId, type FactionId, regionId, systemId } from "../../domain/index.ts";
 import { createEsi } from "../esi/client.ts";
 import { openDb } from "../store/db.ts";
-import { latestSyncRun, regionKills, upsertRegionTree } from "../store/store.ts";
+import { latestSyncRun, regionKills, replaceSovereignty, upsertRegionTree } from "../store/store.ts";
 import { pollKills } from "./kills.ts";
 
 const HOUR = 3_600_000;
 const T0 = new Date("2026-11-18T11:40:00Z");
+const ALLIANCE = 99000001 as AllianceId;
 
 function seed() {
   const db = openDb(":memory:");
@@ -21,10 +22,15 @@ function seed() {
           { id: systemId(30000001), name: "Lowsec", securityStatus: 0.3 },
           { id: systemId(30000002), name: "Quiet", securityStatus: -0.2 },
           { id: systemId(30000003), name: "Busy", securityStatus: -0.8 },
+          { id: systemId(30000004), name: "Unclaimed", securityStatus: -0.5 },
         ],
       },
     ],
   });
+  replaceSovereignty(db, [
+    { systemId: systemId(30000002), allianceId: ALLIANCE, factionId: null },
+    { systemId: systemId(30000003), allianceId: ALLIANCE, factionId: null },
+  ]);
   return db;
 }
 
@@ -82,6 +88,29 @@ test("stores 0 for absent nullsec Systems and drops non-nullsec ones", async () 
     Busy: [{ hourEnding: T0, npcKills: 120 }],
   });
   expect(latestSyncRun(db, "kills")).toMatchObject({ ok: true, error: null, esiLastModified: T0 });
+});
+
+test("stores no kills for NPC or unclaimed nullsec Systems", async () => {
+  const db = seed();
+  replaceSovereignty(db, [
+    { systemId: systemId(30000002), allianceId: null, factionId: 500001 as FactionId },
+    { systemId: systemId(30000003), allianceId: ALLIANCE, factionId: null },
+  ]);
+
+  const result = await pollKills({
+    esi: fakeEsi(
+      hourReply(T0, [
+        { system_id: 30000002, npc_kills: 300 },
+        { system_id: 30000003, npc_kills: 120 },
+        { system_id: 30000004, npc_kills: 80 },
+      ]),
+    ),
+    db,
+  });
+
+  expect(result).toMatchObject({ ok: true, rowsInserted: 1 });
+  expect(db.prepare("SELECT system_id FROM kill_snapshots").all()).toEqual([{ system_id: 30000003 }]);
+  expect(histories(db)).toEqual({ Busy: [{ hourEnding: T0, npcKills: 120 }] });
 });
 
 test("polling again within the same ESI hour stores nothing new", async () => {

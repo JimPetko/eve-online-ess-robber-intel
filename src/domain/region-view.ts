@@ -35,15 +35,11 @@ export type SyncStatus = {
   readonly nextPullAt: IsoTimestamp | null;
 };
 
-/** `null` until the sovereignty map has been pulled. NPC-null carries ESS Presence Unconfirmed. */
-export type SovKind = "sov" | "npc" | "unclaimed";
-
 export type SystemView = {
   readonly id: SystemId;
   readonly name: string;
   readonly constellationId: ConstellationId;
   readonly securityStatus: number;
-  readonly sovKind: SovKind | null;
   readonly mainBank: MainBankCeiling;
   /** As of the prior pull, so the client can find Surges for any Surge Threshold. */
   readonly previousMainBank: MainBankCeiling | null;
