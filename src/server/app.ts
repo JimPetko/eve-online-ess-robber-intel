@@ -35,7 +35,7 @@ export function buildApp({ db, nextPullAt, webRoot }: AppDeps): FastifyInstance 
     // Client-side routes get the app shell; unknown API paths and missing files stay 404s.
     app.setNotFoundHandler((request, reply) => {
       const path = request.url.split("?")[0] ?? "";
-      if (request.method !== "GET" || path.startsWith("/api/") || /\.[^/]*$/.test(path)) {
+      if (request.method !== "GET" || path === "/api" || path.startsWith("/api/") || /\.[^/]*$/.test(path)) {
         return reply.code(404).send({ error: `no route ${request.method} ${request.url}` });
       }
       return reply.sendFile("index.html");

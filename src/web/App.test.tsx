@@ -115,6 +115,8 @@ test("Reserve Bank Estimate shows a band labelled as a floor", async () => {
   await renderApp();
   expect(screen.getByRole("button", { name: /Reserve Bank Estimate \(floor\)/ })).toBeTruthy();
   expect(within(rowOf("8QT-H4")).getByText("≥ 7.38B–29.52B")).toBeTruthy();
+  expect(within(rowOf("NOL-M9")).getByText("—")).toBeTruthy();
+  expect(within(rowOf("NOL-M9")).queryByText(/≥/)).toBeNull();
 });
 
 test("a recent sync shows Recent and no banner", async () => {

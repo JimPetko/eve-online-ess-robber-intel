@@ -69,6 +69,7 @@ tr.surging { box-shadow: inset 3px 0 var(--surge); }
 .badge {
   display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 3px; font-size: 11px;
   font-weight: 600; letter-spacing: 0.02em; vertical-align: 1px; border: 1px solid currentColor;
+  white-space: nowrap;
 }
 .badge.warming { color: var(--accent); }
 .badge.npc { color: var(--npc); }
@@ -89,6 +90,5 @@ tr.surging { box-shadow: inset 3px 0 var(--surge); }
 @media (max-width: 640px) {
   .systems th, .systems td { padding: 4px 6px; }
   .col-sec { display: none; }
-  .badge { margin-left: 0; margin-top: 2px; display: block; width: fit-content; }
-  .systems .col-name { white-space: normal; }
+  .badge { margin-left: 4px; padding: 0 4px; font-size: 10px; }
 }

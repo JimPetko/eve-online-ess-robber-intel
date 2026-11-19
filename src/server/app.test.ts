@@ -249,8 +249,10 @@ test("serves the built UI, with the app shell for client routes and JSON 404s un
     expect([asset.statusCode, asset.headers["content-type"]]).toEqual([200, expect.stringMatching(/javascript/)]);
     expect((await get(instance, "/regions/delve?x=1")).body).toBe("<!doctype html><title>ESS</title>");
     expect((await get(instance, "/assets/index-old.js")).statusCode).toBe(404);
-    const api = await get(instance, "/api/nope");
-    expect([api.statusCode, api.headers["content-type"]]).toEqual([404, "application/json; charset=utf-8"]);
+    for (const url of ["/api/nope", "/api", "/api?x=1"]) {
+      const api = await get(instance, url);
+      expect([url, api.statusCode, api.headers["content-type"]]).toEqual([url, 404, "application/json; charset=utf-8"]);
+    }
   } finally {
     rmSync(webRoot, { recursive: true, force: true });
   }

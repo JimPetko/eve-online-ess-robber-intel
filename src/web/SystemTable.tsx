@@ -233,7 +233,9 @@ function SystemRow({ system: s, surge, onDotlan }: { system: SystemView; surge: 
       </td>
       <td className="num">{formatIsk(s.robberTake)}</td>
       <td className="num col-reserve" title={`Gained over ${String(s.reserve.hoursCovered)}h of history; a floor, not the balance`}>
-        ≥ {formatIsk(s.reserve.low)}–{formatIsk(s.reserve.high)}
+        {s.reserve.low === 0 && s.reserve.high === 0
+          ? "—"
+          : `≥ ${formatIsk(s.reserve.low)}–${formatIsk(s.reserve.high)}`}
       </td>
     </tr>
   );
