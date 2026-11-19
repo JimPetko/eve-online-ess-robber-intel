@@ -1,5 +1,5 @@
 import type { DatabaseSync, SQLOutputValue } from "node:sqlite";
-import type { AllianceId, ConstellationId, FactionId, RegionId, SystemId } from "../ids.ts";
+import type { AllianceId, ConstellationId, FactionId, RegionId, SystemId } from "../../domain/index.ts";
 import { transaction } from "./db.ts";
 
 type Row = Record<string, SQLOutputValue>;

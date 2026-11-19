@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { Esi } from "../esi/client.ts";
-import type { RegionId } from "../ids.ts";
+import type { RegionId } from "../../domain/index.ts";
 import {
   finishSyncRun,
   knownRegionIds,

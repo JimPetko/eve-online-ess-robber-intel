@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "vitest";
-import type { AllianceId, ConstellationId, FactionId, RegionId, SystemId } from "../ids.ts";
+import type { AllianceId, ConstellationId, FactionId, RegionId, SystemId } from "../../domain/index.ts";
 import { openDb, SCHEMA_VERSION } from "./db.ts";
 import {
   finishSyncRun,
