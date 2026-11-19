@@ -2,7 +2,7 @@
 
 Status: implemented in v1. [What shipped differently](#what-shipped-differently) lists the deviations from this design.
 
-Goal: show a Robber, for a chosen Region, which nullsec Systems could hold the most ISK in their ESS right now. Vocabulary is defined in [GLOSSARY.md](../GLOSSARY.md); the core modelling decision is [ADR 0001](adr/0001-main-bank-ceiling-from-npc-kills.md).
+Goal: show a Robber, for a chosen Region, which sov-held nullsec Systems could hold the most ISK in their ESS right now. Vocabulary is defined in [GLOSSARY.md](../GLOSSARY.md); the core modelling decision is [ADR 0001](adr/0001-main-bank-ceiling-from-npc-kills.md).
 
 ## Shape
 
@@ -17,7 +17,7 @@ Goal: show a Robber, for a chosen Region, which nullsec Systems could hold the m
 | NPC kills per System, last hour | `/universe/system_kills` | hourly |
 | Region → Constellation → System hierarchy | `/universe/regions`, `/universe/constellations/{id}`, `/universe/systems/{id}` | daily |
 | Security status | `/universe/systems/{id}` (`security_status`) | daily |
-| Sovereignty (sov vs NPC null) | `/sovereignty/map` | daily |
+| Sovereignty (sov-held, NPC or unclaimed) | `/sovereignty/map` | daily |
 
 - A System absent from a successful `system_kills` response had 0 NPC kills. Record the 0.
 - Snapshots are stamped with ESI's `Last-Modified`, not our wall clock.
@@ -28,7 +28,9 @@ Goal: show a Robber, for a chosen Region, which nullsec Systems could hold the m
 
 ## Scope of Systems
 
-All Systems with true security ≤ 0.0. NPC-nullsec Systems carry the ESS Presence Unconfirmed tag. Wormhole space and Pochven are excluded.
+Sov-held Systems with true security ≤ 0.0, because only sov-held nullsec has an ESS. NPC nullsec (faction-held) and unclaimed nullsec are excluded, as are wormhole space and Pochven. A Region with no sov-held System is not offered.
+
+Sovereignty changes over time. Each daily sovereignty refresh decides scope: a System that loses sovereignty becomes unclaimed and drops out, and one that gains it comes in. Its stored kill history is kept, so a System retaken within the 30-day retention comes back with that history (a gap puts it back in Warming Up). A System stored before its first successful sovereignty refresh is out of scope, because the tool claims an ESS only where the sovereignty map shows one. A failed refresh keeps the previous map.
 
 ## Model
 
@@ -56,7 +58,7 @@ All figures below are Bounty Assumptions in one config file.
 
 - Jove Regions (10000004, 10000017 and 10000019) are excluded with wormhole space and Pochven, because they are unreachable. See `isInScopeRegion` in `src/server/sync/universe.ts`.
 - Constellation totals are computed in the browser with `constellationCeiling`, not sent by the API, so a total cannot disagree with the Systems it sums.
-- ESS Presence Unconfirmed is not stored. The store derives `essPresenceUnconfirmed` from `sovKind === "npc"`, and the API sends only `sovKind`.
+- Scope is one rule, the `nullsec_systems` view in `src/server/store/db.ts` (true security ≤ 0.0 and `sov_kind = 'sov'`). Region counts, the Region view and the kills poll all read it. NPC and unclaimed Systems stay stored but are never polled, computed or shown.
 - The API contract is the set of types in `src/domain/region-view.ts`, shared by the server and the UI.
 
 ## Deferred (v2+)

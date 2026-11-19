@@ -5,6 +5,7 @@ import { afterEach, expect, test } from "vitest";
 import {
   constellationId,
   type AllianceId,
+  type FactionId,
   isk,
   regionId,
   systemId,
@@ -27,6 +28,15 @@ const DELVE = regionId(10000060);
 const BUSY = systemId(30004759);
 const FRESH = systemId(30004760);
 const QUIET = systemId(30004761);
+/** Out of scope: NPC and unclaimed nullsec in Delve, and Regions holding only one or the other. */
+const FACTION = systemId(30004762);
+const UNCLAIMED = systemId(30004763);
+const STAIN = regionId(10000022);
+const STAIN_SYSTEM = systemId(30002000);
+const WICKED_CREEK = regionId(10000006);
+const WICKED_CREEK_SYSTEM = systemId(30000400);
+const SERPENTIS = 500020 as FactionId;
+const GOONS = 1354830081 as AllianceId;
 
 function seed() {
   const db = openDb(":memory:");
@@ -40,6 +50,8 @@ function seed() {
         systems: [
           { id: BUSY, name: "1DQ1-A", securityStatus: -0.5 },
           { id: FRESH, name: "T5ZI-S", securityStatus: -0.1 },
+          { id: FACTION, name: "NPC-1", securityStatus: -0.6 },
+          { id: UNCLAIMED, name: "OPEN-1", securityStatus: -0.6 },
         ],
       },
       { id: constellationId(20000694), name: "1P-VL2", systems: [{ id: QUIET, name: "PUIG-F", securityStatus: -0.9 }] },
@@ -59,7 +71,32 @@ function seed() {
       { id: constellationId(20000002), name: "Far", systems: [{ id: systemId(30000009), name: "Far", securityStatus: -0.3 }] },
     ],
   });
-  replaceSovereignty(db, [{ systemId: BUSY, allianceId: 1354830081 as AllianceId, factionId: null }]);
+  upsertRegionTree(db, {
+    id: STAIN,
+    name: "Stain",
+    constellations: [
+      { id: constellationId(20000300), name: "Faction", systems: [{ id: STAIN_SYSTEM, name: "NPC-2", securityStatus: -0.4 }] },
+    ],
+  });
+  upsertRegionTree(db, {
+    id: WICKED_CREEK,
+    name: "Wicked Creek",
+    constellations: [
+      {
+        id: constellationId(20000060),
+        name: "Open",
+        systems: [{ id: WICKED_CREEK_SYSTEM, name: "OPEN-2", securityStatus: -0.4 }],
+      },
+    ],
+  });
+  replaceSovereignty(db, [
+    { systemId: BUSY, allianceId: GOONS, factionId: null },
+    { systemId: FRESH, allianceId: GOONS, factionId: null },
+    { systemId: QUIET, allianceId: GOONS, factionId: null },
+    { systemId: systemId(30000009), allianceId: GOONS, factionId: null },
+    { systemId: FACTION, allianceId: null, factionId: SERPENTIS },
+    { systemId: STAIN_SYSTEM, allianceId: null, factionId: SERPENTIS },
+  ]);
   return db;
 }
 
@@ -102,6 +139,28 @@ test("GET /api/regions lists Regions with in-scope Systems, by name", async () =
   } satisfies RegionList);
 });
 
+test("NPC and unclaimed nullsec are out of scope: absent from counts and views, and their Regions are unknown", async () => {
+  const db = seed();
+  pull(db, T, [
+    [BUSY, 40],
+    [FACTION, 500],
+    [UNCLAIMED, 500],
+    [STAIN_SYSTEM, 500],
+    [WICKED_CREEK_SYSTEM, 500],
+  ]);
+  const instance = app(db);
+
+  const regions = (await get(instance, "/api/regions")).json<RegionList>().regions;
+  expect(regions.map((r) => r.name)).toEqual(["Catch", "Delve"]);
+  expect(regions.find((r) => r.id === DELVE)?.nullsecSystemCount).toBe(3);
+
+  const delve = (await get(instance, `/api/regions/${String(DELVE)}`)).json<RegionView>();
+  expect(delve.systems.map((s) => s.name)).toEqual(["1DQ1-A", "T5ZI-S", "PUIG-F"]);
+
+  expect((await get(instance, `/api/regions/${String(STAIN)}`)).statusCode).toBe(404);
+  expect((await get(instance, `/api/regions/${String(WICKED_CREEK)}`)).statusCode).toBe(404);
+});
+
 test("GET /api/regions/:id computes ceilings, previous ceiling, Robber Take and Reserve per System", async () => {
   const db = seed();
   // BUSY has four full hours; FRESH only the latest; QUIET none at all.
@@ -135,7 +194,6 @@ test("GET /api/regions/:id computes ceilings, previous ceiling, Robber Take and 
         name: "1DQ1-A",
         constellationId: constellationId(20000696),
         securityStatus: -0.5,
-        sovKind: "sov",
         // (40 + 30 + 0.75 * 20) * 800k * 0.4
         mainBank: { status: "ready", ceiling: isk(27.2 * M) },
         // (30 + 20 + 0.75 * 10) * 800k * 0.4
@@ -149,7 +207,6 @@ test("GET /api/regions/:id computes ceilings, previous ceiling, Robber Take and 
         name: "T5ZI-S",
         constellationId: constellationId(20000696),
         securityStatus: -0.1,
-        sovKind: "unclaimed",
         mainBank: { status: "warmingUp", ceiling: isk(1.2 * M), hoursCovered: 1, hoursNeeded: 3 },
         previousMainBank: null,
         robberTake: isk(0.96 * M),
@@ -160,7 +217,6 @@ test("GET /api/regions/:id computes ceilings, previous ceiling, Robber Take and 
         name: "PUIG-F",
         constellationId: constellationId(20000694),
         securityStatus: -0.9,
-        sovKind: "unclaimed",
         mainBank: { status: "warmingUp", ceiling: isk(0), hoursCovered: 0, hoursNeeded: 3 },
         previousMainBank: null,
         robberTake: isk(0),

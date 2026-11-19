@@ -15,7 +15,7 @@ _Avoid_: Farmer, PvE pilot
 ## The ESS
 
 **ESS**:
-The Encounter Surveillance System in a nullsec System, which skims a share of NPC bounties into its banks.
+The Encounter Surveillance System, which skims a share of NPC bounties into its banks. Only sov-held nullsec has one: NPC nullsec (faction-held) and unclaimed nullsec have none.
 _Avoid_: Encounter Surveillance System (spell out only once), bank (the ESS has two)
 
 **Main Bank**:
@@ -67,9 +67,6 @@ The minimum ISK increase, set by the Robber, for a rise to count as a Surge.
 Figures whose last successful pull is an hour old or more, so they may lag reality. Every System in a Region shares one pull, so Stale applies to the whole Region view. Figures under an hour old are Recent.
 _Avoid_: Outdated, expired
 
-**ESS Presence Unconfirmed**:
-A tag on NPC-nullsec Systems, where it is not yet verified that an ESS exists.
-
 ## Geography
 
 **Region**:
@@ -79,7 +76,7 @@ The top-level area a Robber filters by; contains Constellations.
 A group of Systems within a Region; the middle level of the browse hierarchy, reported with the sum of its Systems' Main Bank Ceilings.
 
 **System**:
-A single nullsec solar system; the unit a Main Bank Ceiling is reported for. Wormhole space, Pochven and the Jove Regions are excluded.
+A single sov-held nullsec solar system, the only kind with an ESS; the unit a Main Bank Ceiling is reported for. NPC nullsec and unclaimed nullsec are excluded, as are wormhole space, Pochven and the Jove Regions. Sovereignty changes: a System is in scope while the latest daily sovereignty refresh shows an alliance holding it.
 _Avoid_: Solar system, star
 
 **Security Band**:

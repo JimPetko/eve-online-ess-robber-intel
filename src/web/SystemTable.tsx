@@ -216,11 +216,6 @@ function SystemRow({ system: s, surge, onDotlan }: { system: SystemView; surge: 
             Warming Up {s.mainBank.hoursCovered}/{s.mainBank.hoursNeeded}h
           </span>
         )}
-        {s.sovKind === "npc" && (
-          <span className="badge npc" title="NPC null: not yet verified that an ESS exists here">
-            ESS Presence Unconfirmed
-          </span>
-        )}
       </th>
       <td className="num col-sec">{s.securityStatus.toFixed(2)}</td>
       <td className="num">

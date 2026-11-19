@@ -20,7 +20,7 @@ const UNIVERSE: Record<string, unknown> = {
     systems: [30000002],
   },
   "/universe/systems/30000002": { system_id: 30000002, name: "Quiet", constellation_id: 20000001, security_status: -0.2 },
-  "/sovereignty/map": [],
+  "/sovereignty/map": [{ system_id: 30000002, alliance_id: 99000001, corporation_id: 98000001 }],
 };
 
 function harness() {

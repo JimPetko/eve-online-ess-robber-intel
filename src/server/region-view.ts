@@ -36,7 +36,6 @@ function systemView(system: SystemKillHistory, assumptions: BountyAssumptions): 
     name: system.name,
     constellationId: system.constellationId,
     securityStatus,
-    sovKind: system.sovKind,
     mainBank,
     previousMainBank: before.length === 0 ? null : mainBankCeiling(before, securityStatus, assumptions),
     robberTake: robberTake(mainBank.ceiling, assumptions),

@@ -17,7 +17,6 @@ const result = await syncUniverse({
 });
 
 const systems = listNullsecSystems(db);
-const count = (kind: string) => systems.filter((s) => s.sovKind === kind).length;
 console.log(
   JSON.stringify(
     {
@@ -25,13 +24,10 @@ console.log(
       dbPath: config.dbPath,
       seconds: Math.round((performance.now() - started) / 100) / 10,
       fetched: { regions: result.regionsFetched, systems: result.systemsFetched },
-      nullsec: {
+      inScope: {
         regions: new Set(systems.map((s) => s.regionId)).size,
         constellations: new Set(systems.map((s) => s.constellationId)).size,
         systems: systems.length,
-        sov: count("sov"),
-        npc: count("npc"),
-        unclaimed: count("unclaimed"),
       },
       errors: result.errors,
     },

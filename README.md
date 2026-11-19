@@ -1,6 +1,6 @@
 # ESS Robber Intel
 
-ESS Robber Intel ranks the nullsec Systems in an EVE Online Region by how much ISK their Encounter Surveillance System (ESS) could hold. It is for Robbers: players who break into an ESS to steal its banked ISK.
+ESS Robber Intel ranks the sov-held nullsec Systems in an EVE Online Region by how much ISK their Encounter Surveillance System (ESS) could hold. It is for Robbers: players who break into an ESS to steal its banked ISK.
 
 Public ESI reports no bank balances, only an hourly NPC kill count per System. The Main Bank Ceiling is therefore an upper bound, modelled from `npc_kills` and the Bounty Assumptions. The true balance lies between zero and the ceiling. The Reserve Bank Estimate is a floor band on what the Reserve Bank gained during the history the tool holds, and Robberies are invisible, so a robbed bank keeps its ceiling for up to one Payout Cycle.
 
@@ -58,8 +58,8 @@ All responses are JSON. The types are in `src/domain/region-view.ts`.
 | Endpoint | Returns |
 |---|---|
 | `GET /api/health` | `{ "ok": true }` |
-| `GET /api/regions` | Regions with at least one nullsec System, by name. |
-| `GET /api/regions/:id` | One Region: sync status, Constellations, and per System the Main Bank Ceiling, previous ceiling, Robber Take and Reserve Bank Estimate. An id that is not a whole number returns 400. An unknown Region, or one without nullsec, returns 404. |
+| `GET /api/regions` | Regions with at least one sov-held nullsec System, by name. |
+| `GET /api/regions/:id` | One Region: sync status, Constellations, and per System the Main Bank Ceiling, previous ceiling, Robber Take and Reserve Bank Estimate. An id that is not a whole number returns 400. An unknown Region, or one without sov-held nullsec, returns 404. |
 
 ## Bounty Assumptions
 
@@ -93,7 +93,6 @@ The scheduled poller is the only code that calls ESI. Browsers call only this AP
 
 - Robberies and payouts are invisible. A ceiling can stay high for up to one Payout Cycle after the bank was emptied.
 - The Main Bank share is 40%, an unverified player estimate. A 2022 patch note says 50% of each bounty enters the ESS, which conflicts with it. See [docs/research/reserve-bank.md](docs/research/reserve-bank.md).
-- No one has verified that NPC-nullsec Systems have an ESS. They carry the ESS Presence Unconfirmed tag.
 - The Reserve Bank Estimate is provisional. It is cut if it misleads more than it helps.
 - ISK per NPC kill is a guess per Security Band, not calibrated.
-- Wormhole space, Pochven and the Jove Regions are excluded.
+- Only sov-held nullsec has an ESS, so NPC nullsec, unclaimed nullsec, wormhole space, Pochven and the Jove Regions are excluded. Scope follows the daily sovereignty refresh, so a System that loses sovereignty can show for up to a day after it has no ESS.

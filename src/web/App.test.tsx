@@ -104,11 +104,10 @@ test("the Surge Threshold is remembered", async () => {
   expect(screen.getByRole("spinbutton", { name: /Surge Threshold/ })).toHaveProperty("value", "35");
 });
 
-test("Warming Up and ESS Presence Unconfirmed tags", async () => {
+test("Warming Up tag, and no ESS presence tag on any System", async () => {
   await renderApp();
   expect(within(rowOf("5BTK-M")).getByText("Warming Up 1/3h")).toBeTruthy();
-  expect(within(rowOf("J5A-IX")).getByText("ESS Presence Unconfirmed")).toBeTruthy();
-  expect(within(rowOf("MO-GZ5")).queryByText("ESS Presence Unconfirmed")).toBeNull();
+  expect(screen.queryByText(/ESS Presence/)).toBeNull();
 });
 
 test("Reserve Bank Estimate shows a band labelled as a floor", async () => {
