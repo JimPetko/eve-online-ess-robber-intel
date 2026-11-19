@@ -4,7 +4,7 @@ import {
   type BountyAssumptions,
 } from "./bounty-assumptions.ts";
 import { killsByHourSlot, type HourlyKills } from "./history.ts";
-import { isk, type Isk } from "./ids.ts";
+import { isk, type Isk, type RegionId } from "./ids.ts";
 
 /**
  * A floor on what a Reserve Bank gained during `hoursCovered` hours of
@@ -20,13 +20,13 @@ export type ReserveBankEstimate = {
 /** Accrual over the whole of `history`; the store decides how much it retains. */
 export function reserveBankEstimate(
   history: readonly HourlyKills[],
-  securityStatus: number,
+  region: RegionId,
   assumptions: BountyAssumptions = DEFAULT_BOUNTY_ASSUMPTIONS,
 ): ReserveBankEstimate {
   const kills = killsByHourSlot(history);
   let totalKills = 0;
   for (const k of kills.values()) totalKills += k;
-  const bounties = totalKills * iskPerNpcKill(securityStatus, assumptions);
+  const bounties = totalKills * iskPerNpcKill(region, assumptions);
   return {
     low: isk(bounties * assumptions.reserveFillShare.low),
     high: isk(bounties * assumptions.reserveFillShare.high),

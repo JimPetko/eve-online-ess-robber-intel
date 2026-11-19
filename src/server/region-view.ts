@@ -27,19 +27,19 @@ function syncStatus({ latestRun, latestSuccess }: RegionKills, nextPullAt: Date 
 }
 
 function systemView(system: SystemKillHistory, assumptions: BountyAssumptions): SystemView {
-  const { history, securityStatus } = system;
-  const mainBank = mainBankCeiling(history, securityStatus, assumptions);
+  const { history, regionId } = system;
+  const mainBank = mainBankCeiling(history, regionId, assumptions);
   // History is oldest first and every pull stores a row for every System, so the last entry is the latest pull.
   const before = history.slice(0, -1);
   return {
     id: system.id,
     name: system.name,
     constellationId: system.constellationId,
-    securityStatus,
+    securityStatus: system.securityStatus,
     mainBank,
-    previousMainBank: before.length === 0 ? null : mainBankCeiling(before, securityStatus, assumptions),
+    previousMainBank: before.length === 0 ? null : mainBankCeiling(before, regionId, assumptions),
     robberTake: robberTake(mainBank.ceiling, assumptions),
-    reserve: reserveBankEstimate(history, securityStatus, assumptions),
+    reserve: reserveBankEstimate(history, regionId, assumptions),
   };
 }
 

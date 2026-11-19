@@ -49,7 +49,7 @@ This tool's low–high band for how much ISK a Reserve Bank has gained during th
 _Avoid_: Reserve value, reserve balance (implies measured)
 
 **Bounty Assumptions**:
-The tunable figures that turn NPC kill counts into ISK: ISK per NPC kill by Security Band, the Payout Cycle length, the Main Bank share of bounties, the Robber Take share, and the reserve fill share band.
+The tunable figures that turn NPC kill counts into ISK: ISK per NPC kill by Region (calibrated monthly from CCP's Monthly Economic Report, with a pooled fallback), the Payout Cycle length, the Main Bank share of bounties, the Robber Take share, and the reserve fill share band.
 _Avoid_: Magic numbers, constants
 
 **Warming Up**:
@@ -70,7 +70,7 @@ _Avoid_: Outdated, expired
 ## Geography
 
 **Region**:
-The top-level area a Robber filters by; contains Constellations.
+The top-level area a Robber filters by; contains Constellations. Also the unit ISK per NPC kill is calibrated for, since Regions differ in what their NPCs pay.
 
 **Constellation**:
 A group of Systems within a Region; the middle level of the browse hierarchy, reported with the sum of its Systems' Main Bank Ceilings.
@@ -78,7 +78,3 @@ A group of Systems within a Region; the middle level of the browse hierarchy, re
 **System**:
 A single sov-held nullsec solar system, the only kind with an ESS; the unit a Main Bank Ceiling is reported for. NPC nullsec and unclaimed nullsec are excluded, as are wormhole space, Pochven and the Jove Regions. Sovereignty changes: a System is in scope while the latest daily sovereignty refresh shows an alliance holding it.
 _Avoid_: Solar system, star
-
-**Security Band**:
-A range of true security status used to pick the ISK-per-NPC-kill Bounty Assumption, since deeper nullsec pays richer bounties.
-_Avoid_: Truesec tier, sec level

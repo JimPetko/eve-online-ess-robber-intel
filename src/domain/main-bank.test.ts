@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
-import { DEFAULT_BOUNTY_ASSUMPTIONS } from "./bounty-assumptions.ts";
+import { DEFAULT_BOUNTY_ASSUMPTIONS, type BountyAssumptions } from "./bounty-assumptions.ts";
 import type { HourlyKills } from "./history.ts";
-import { isk } from "./ids.ts";
+import { isk, regionId } from "./ids.ts";
 import {
   constellationCeiling,
   mainBankCeiling,
@@ -10,8 +10,14 @@ import {
   type MainBankCeiling,
 } from "./main-bank.ts";
 
-// Security -0.1: 500k ISK per kill x 0.40 Main Bank share = 200k ISK per kill.
-const SEC = -0.1;
+const CALIBRATED = regionId(10000003);
+const UNCALIBRATED = regionId(10000023);
+// CALIBRATED: 500k ISK per kill x 0.40 Main Bank share = 200k ISK per kill.
+const ASSUMPTIONS: BountyAssumptions = {
+  ...DEFAULT_BOUNTY_ASSUMPTIONS,
+  iskPerNpcKill: { byRegion: new Map([[CALIBRATED, isk(500_000)]]), fallback: isk(300_000) },
+};
+const ceiling = (h: HourlyKills[], assumptions = ASSUMPTIONS) => mainBankCeiling(h, CALIBRATED, assumptions);
 const LATEST = Date.UTC(2026, 10, 18, 12);
 const HOUR = 3_600_000;
 
@@ -23,21 +29,21 @@ function history(...kills: (number | undefined)[]): HourlyKills[] {
 }
 
 test("counts two full hours and 0.75 of the third", () => {
-  expect(mainBankCeiling(history(10, 10, 4), SEC)).toEqual({
+  expect(ceiling(history(10, 10, 4))).toEqual({
     status: "ready",
     ceiling: (10 + 10 + 0.75 * 4) * 200_000,
   });
 });
 
 test("ignores hours older than the Payout Cycle", () => {
-  expect(mainBankCeiling(history(10, 10, 4, 999, 999), SEC)).toEqual(
-    mainBankCeiling(history(10, 10, 4), SEC),
+  expect(ceiling(history(10, 10, 4, 999, 999))).toEqual(
+    ceiling(history(10, 10, 4)),
   );
 });
 
 test("does not depend on history order", () => {
-  expect(mainBankCeiling(history(10, 10, 4).reverse(), SEC)).toEqual(
-    mainBankCeiling(history(10, 10, 4), SEC),
+  expect(ceiling(history(10, 10, 4).reverse())).toEqual(
+    ceiling(history(10, 10, 4)),
   );
 });
 
@@ -46,15 +52,15 @@ test("lands pulls a few minutes off the hour in the same slot", () => {
     ...h,
     hourEnding: new Date(h.hourEnding.getTime() + (i + 1) * 4 * 60_000),
   }));
-  expect(mainBankCeiling(drifted, SEC)).toEqual(mainBankCeiling(history(10, 10, 4), SEC));
+  expect(ceiling(drifted)).toEqual(ceiling(history(10, 10, 4)));
 });
 
 test("0-kill hours count as data", () => {
-  expect(mainBankCeiling(history(0, 0, 0), SEC)).toEqual({ status: "ready", ceiling: 0 });
+  expect(ceiling(history(0, 0, 0))).toEqual({ status: "ready", ceiling: 0 });
 });
 
 test("a gap in the window means Warming Up with the partial ceiling", () => {
-  expect(mainBankCeiling(history(10, undefined, 4, 7), SEC)).toEqual({
+  expect(ceiling(history(10, undefined, 4, 7))).toEqual({
     status: "warmingUp",
     ceiling: (10 + 0.75 * 4) * 200_000,
     hoursCovered: 2,
@@ -63,7 +69,7 @@ test("a gap in the window means Warming Up with the partial ceiling", () => {
 });
 
 test("less than a cycle of history means Warming Up", () => {
-  expect(mainBankCeiling(history(10, 10), SEC)).toEqual({
+  expect(ceiling(history(10, 10))).toEqual({
     status: "warmingUp",
     ceiling: 20 * 200_000,
     hoursCovered: 2,
@@ -72,7 +78,7 @@ test("less than a cycle of history means Warming Up", () => {
 });
 
 test("empty history is Warming Up at zero", () => {
-  expect(mainBankCeiling([], SEC)).toEqual({
+  expect(ceiling([])).toEqual({
     status: "warmingUp",
     ceiling: 0,
     hoursCovered: 0,
@@ -81,17 +87,17 @@ test("empty history is Warming Up at zero", () => {
 });
 
 test("the window follows payoutCycleMinutes", () => {
-  const threeHours = { ...DEFAULT_BOUNTY_ASSUMPTIONS, payoutCycleMinutes: 180 };
-  expect(mainBankCeiling(history(1, 1, 1, 1), SEC, threeHours)).toEqual({
+  const threeHours = { ...ASSUMPTIONS, payoutCycleMinutes: 180 };
+  expect(ceiling(history(1, 1, 1, 1), threeHours)).toEqual({
     status: "ready",
     ceiling: 3 * 200_000,
   });
 });
 
-test("deeper security pays more per kill", () => {
-  expect(mainBankCeiling(history(10, 10, 4), -0.9)).toEqual({
+test("a Region outside the calibration is priced at the fallback", () => {
+  expect(mainBankCeiling(history(10, 10, 4), UNCALIBRATED, ASSUMPTIONS)).toEqual({
     status: "ready",
-    ceiling: 11_040_000, // 23 weighted kills x 1.2M ISK x 0.40
+    ceiling: 2_760_000, // 23 weighted kills x 300k ISK x 0.40
   });
 });
 

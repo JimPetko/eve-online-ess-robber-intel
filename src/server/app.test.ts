@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { afterEach, expect, test } from "vitest";
 import {
   constellationId,
+  DEFAULT_BOUNTY_ASSUMPTIONS,
+  iskPerNpcKill,
   type AllianceId,
   type FactionId,
   isk,
@@ -18,13 +20,14 @@ import { openDb } from "./store/db.ts";
 import { finishSyncRun, recordKillSnapshot, replaceSovereignty, startSyncRun, upsertRegionTree } from "./store/store.ts";
 
 const HOUR = 3_600_000;
-const M = 1_000_000;
 /** The latest pull. */
 const T = new Date("2026-11-18T12:00:00Z");
 const hoursBefore = (n: number) => new Date(T.getTime() - n * HOUR);
 const NEXT_PULL = new Date("2026-11-18T13:00:20Z");
 
 const DELVE = regionId(10000060);
+/** Delve's calibrated ISK per NPC kill. */
+const DELVE_ISK = iskPerNpcKill(DELVE, DEFAULT_BOUNTY_ASSUMPTIONS);
 const BUSY = systemId(30004759);
 const FRESH = systemId(30004760);
 const QUIET = systemId(30004761);
@@ -175,7 +178,7 @@ test("GET /api/regions/:id computes ceilings, previous ceiling, Robber Take and 
   const res = await get(app(db), `/api/regions/${String(DELVE)}`);
 
   expect(res.statusCode).toBe(200);
-  // -0.5 is 800k ISK per kill, 40% to the Main Bank, over hours weighted [1, 1, 0.75] latest first.
+  // Delve's calibrated ISK per kill, 40% to the Main Bank, over hours weighted [1, 1, 0.75] latest first.
   expect(res.json()).toEqual({
     region: { id: DELVE, name: "Delve" },
     sync: {
@@ -194,23 +197,23 @@ test("GET /api/regions/:id computes ceilings, previous ceiling, Robber Take and 
         name: "1DQ1-A",
         constellationId: constellationId(20000696),
         securityStatus: -0.5,
-        // (40 + 30 + 0.75 * 20) * 800k * 0.4
-        mainBank: { status: "ready", ceiling: isk(27.2 * M) },
-        // (30 + 20 + 0.75 * 10) * 800k * 0.4
-        previousMainBank: { status: "ready", ceiling: isk(18.4 * M) },
-        robberTake: isk(21.76 * M),
-        // 100 kills * 800k at 5% and 20%
-        reserve: { low: isk(4 * M), high: isk(16 * M), hoursCovered: 4 },
+        // 40 + 30 + 0.75 * 20 = 85 weighted kills
+        mainBank: { status: "ready", ceiling: isk(85 * DELVE_ISK * 0.4) },
+        // 30 + 20 + 0.75 * 10 = 57.5 weighted kills
+        previousMainBank: { status: "ready", ceiling: isk(57.5 * DELVE_ISK * 0.4) },
+        robberTake: isk(isk(85 * DELVE_ISK * 0.4) * 0.8),
+        // 100 kills at 5% and 10%
+        reserve: { low: isk(100 * DELVE_ISK * 0.05), high: isk(100 * DELVE_ISK * 0.1), hoursCovered: 4 },
       },
       {
         id: FRESH,
         name: "T5ZI-S",
         constellationId: constellationId(20000696),
         securityStatus: -0.1,
-        mainBank: { status: "warmingUp", ceiling: isk(1.2 * M), hoursCovered: 1, hoursNeeded: 3 },
+        mainBank: { status: "warmingUp", ceiling: isk(6 * DELVE_ISK * 0.4), hoursCovered: 1, hoursNeeded: 3 },
         previousMainBank: null,
-        robberTake: isk(0.96 * M),
-        reserve: { low: isk(0.15 * M), high: isk(0.6 * M), hoursCovered: 1 },
+        robberTake: isk(isk(6 * DELVE_ISK * 0.4) * 0.8),
+        reserve: { low: isk(6 * DELVE_ISK * 0.05), high: isk(6 * DELVE_ISK * 0.1), hoursCovered: 1 },
       },
       {
         id: QUIET,
@@ -234,8 +237,13 @@ test("the previous ceiling is Warming Up while the history before the latest pul
 
   const busy = (await get(app(db), `/api/regions/${String(DELVE)}`)).json<RegionView>().systems[0];
 
-  expect(busy?.mainBank).toEqual({ status: "ready", ceiling: isk(8.8 * M) });
-  expect(busy?.previousMainBank).toEqual({ status: "warmingUp", ceiling: isk(6.4 * M), hoursCovered: 2, hoursNeeded: 3 });
+  expect(busy?.mainBank).toEqual({ status: "ready", ceiling: isk(27.5 * DELVE_ISK * 0.4) });
+  expect(busy?.previousMainBank).toEqual({
+    status: "warmingUp",
+    ceiling: isk(20 * DELVE_ISK * 0.4),
+    hoursCovered: 2,
+    hoursNeeded: 3,
+  });
 });
 
 test.each([
