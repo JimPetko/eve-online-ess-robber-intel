@@ -57,6 +57,16 @@ const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX sync_runs_kind ON sync_runs(kind, started_at);
   `,
+  // Jove Regions are unreachable, so the universe sync now skips them. Drop any it stored earlier.
+  `
+  DELETE FROM kill_snapshots WHERE system_id IN (
+    SELECT s.id FROM systems s JOIN constellations c ON c.id = s.constellation_id
+    WHERE c.region_id IN (10000004, 10000017, 10000019));
+  DELETE FROM systems WHERE constellation_id IN (
+    SELECT id FROM constellations WHERE region_id IN (10000004, 10000017, 10000019));
+  DELETE FROM constellations WHERE region_id IN (10000004, 10000017, 10000019);
+  DELETE FROM regions WHERE id IN (10000004, 10000017, 10000019);
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

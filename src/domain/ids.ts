@@ -4,6 +4,8 @@ type Brand<T, Name extends string> = T & { readonly [brand]: Name };
 export type SystemId = Brand<number, "SystemId">;
 export type ConstellationId = Brand<number, "ConstellationId">;
 export type RegionId = Brand<number, "RegionId">;
+export type AllianceId = Brand<number, "AllianceId">;
+export type FactionId = Brand<number, "FactionId">;
 /** An amount of ISK, always rounded to whole ISK. */
 export type Isk = Brand<number, "Isk">;
 

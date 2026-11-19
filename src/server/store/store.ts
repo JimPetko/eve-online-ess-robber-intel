@@ -1,5 +1,12 @@
 import type { DatabaseSync, SQLOutputValue } from "node:sqlite";
-import type { AllianceId, ConstellationId, FactionId, RegionId, SystemId } from "../ids.ts";
+import type {
+  AllianceId,
+  ConstellationId,
+  FactionId,
+  HourlyKills,
+  RegionId,
+  SystemId,
+} from "../../domain/index.ts";
 import { transaction } from "./db.ts";
 
 type Row = Record<string, SQLOutputValue>;
@@ -130,18 +137,22 @@ export function listNullsecSystems(db: DatabaseSync, regionId?: RegionId): Nulls
 
 export const SNAPSHOT_RETENTION_DAYS = 30;
 
-/** Records one hourly pull, stamped with ESI Last-Modified. Re-recording the same pull overwrites it. */
+/**
+ * Records one hourly pull, stamped with ESI Last-Modified. Rows already stored for that pull are
+ * kept as they are, so recording the same pull again is a no-op. Returns rows inserted.
+ */
 export function recordKillSnapshot(
   db: DatabaseSync,
   pulledAt: Date,
   npcKills: ReadonlyMap<SystemId, number>,
-): void {
-  const upsert = db.prepare(
-    `INSERT INTO kill_snapshots (pulled_at, system_id, npc_kills) VALUES (?, ?, ?)
-     ON CONFLICT (pulled_at, system_id) DO UPDATE SET npc_kills = excluded.npc_kills`,
+): number {
+  const insert = db.prepare(
+    "INSERT INTO kill_snapshots (pulled_at, system_id, npc_kills) VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
   );
-  transaction(db, () => {
-    for (const [systemId, kills] of npcKills) upsert.run(pulledAt.getTime(), systemId, kills);
+  return transaction(db, () => {
+    let inserted = 0;
+    for (const [systemId, kills] of npcKills) inserted += Number(insert.run(pulledAt.getTime(), systemId, kills).changes);
+    return inserted;
   });
 }
 
@@ -187,7 +198,17 @@ export interface SyncRun {
 
 export function latestSyncRun(db: DatabaseSync, kind: SyncKind): SyncRun | null {
   const row = db.prepare("SELECT * FROM sync_runs WHERE kind = ? ORDER BY started_at DESC, id DESC LIMIT 1").get(kind);
-  if (row === undefined) return null;
+  return row === undefined ? null : syncRun(row, kind);
+}
+
+export function latestSuccessfulSyncRun(db: DatabaseSync, kind: SyncKind): SyncRun | null {
+  const row = db
+    .prepare("SELECT * FROM sync_runs WHERE kind = ? AND ok = 1 ORDER BY started_at DESC, id DESC LIMIT 1")
+    .get(kind);
+  return row === undefined ? null : syncRun(row, kind);
+}
+
+function syncRun(row: Row, kind: SyncKind): SyncRun {
   const finishedAt = numOrNull(row, "finished_at");
   const ok = numOrNull(row, "ok");
   const lastModified = numOrNull(row, "esi_last_modified");
@@ -200,5 +221,43 @@ export function latestSyncRun(db: DatabaseSync, kind: SyncKind): SyncRun | null 
     ok: ok === null ? null : ok === 1,
     error: typeof error === "string" ? error : null,
     esiLastModified: lastModified === null ? null : new Date(lastModified),
+  };
+}
+
+export interface SystemKillHistory extends NullsecSystem {
+  /** Oldest first. An hour with no entry is a gap, not 0 kills. */
+  readonly history: readonly HourlyKills[];
+}
+
+export interface RegionKills {
+  /** Every in-scope System in the Region, ordered by id. Empty for an unknown Region. */
+  readonly systems: readonly SystemKillHistory[];
+  /** The most recent kills poll, successful or not; null before the first. */
+  readonly latestRun: SyncRun | null;
+  /** The most recent successful kills poll; its esiLastModified is "data as of". */
+  readonly latestSuccess: SyncRun | null;
+}
+
+/** A Region's in-scope Systems with their retained hourly kills, plus the kills poll status. */
+export function regionKills(db: DatabaseSync, regionId: RegionId): RegionKills {
+  const histories = new Map<number, HourlyKills[]>();
+  const rows = db
+    .prepare(
+      `SELECT k.system_id, k.pulled_at, k.npc_kills
+       FROM kill_snapshots k JOIN nullsec_systems s ON s.id = k.system_id
+       WHERE s.region_id = ? ORDER BY k.system_id, k.pulled_at`,
+    )
+    .all(regionId);
+  for (const row of rows) {
+    const id = num(row, "system_id");
+    const entry: HourlyKills = { hourEnding: new Date(num(row, "pulled_at")), npcKills: num(row, "npc_kills") };
+    const history = histories.get(id);
+    if (history) history.push(entry);
+    else histories.set(id, [entry]);
+  }
+  return {
+    systems: listNullsecSystems(db, regionId).map((system) => ({ ...system, history: histories.get(system.id) ?? [] })),
+    latestRun: latestSyncRun(db, "kills"),
+    latestSuccess: latestSuccessfulSyncRun(db, "kills"),
   };
 }
