@@ -5,11 +5,15 @@ const UNITS = [
   { size: 1e3, suffix: "K", digits: 1 },
 ] as const;
 
-/** 1_234_000_000 → "1.23B", 456_700_000 → "456.7M". */
+/**
+ * 1_234_000_000 → "1.23B", 456_700_000 → "456.7M". The unit is chosen after rounding, so
+ * 999_960_000 is "1.00B", not "1000.0M".
+ */
 export function formatIsk(amount: number): string {
   const abs = Math.abs(amount);
-  const unit = UNITS.find((u) => abs >= u.size);
-  if (!unit) return String(Math.round(amount));
+  if (Math.round(abs) < 1000) return String(Math.round(amount));
+  const unit =
+    UNITS.findLast((u) => Number((abs / u.size).toFixed(u.digits)) < 1000) ?? UNITS[0];
   return `${(amount / unit.size).toFixed(unit.digits)}${unit.suffix}`;
 }
 

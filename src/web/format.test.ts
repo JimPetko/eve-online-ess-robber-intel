@@ -9,6 +9,11 @@ test("ISK reads like the game's shorthand", () => {
   expect(formatIsk(950)).toBe("950");
   expect(formatIsk(0)).toBe("0");
   expect(formatIsk(2_500_000_000_000)).toBe("2.50T");
+  expect(formatIsk(999_960_000)).toBe("1.00B");
+  expect(formatIsk(999_950)).toBe("1.0M");
+  expect(formatIsk(999.6)).toBe("1.0K");
+  expect(formatIsk(999_995_000_000)).toBe("1.00T");
+  expect(formatIsk(-999_960_000)).toBe("-1.00B");
 });
 
 test("ages", () => {
