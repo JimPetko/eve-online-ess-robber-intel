@@ -2,6 +2,7 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches: [main]
 
@@ -23,3 +24,20 @@ jobs:
         run: npm test
       - name: Build
         run: npm run build
+
+  tests-required:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Behaviour changes ship with tests
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-tests-needed') }}
+        run: node scripts/tests-required.mjs ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }}
+      - name: Waived by no-tests-needed label
+        if: ${{ contains(github.event.pull_request.labels.*.name, 'no-tests-needed') }}
+        run: echo "no-tests-needed label set; check waived"
