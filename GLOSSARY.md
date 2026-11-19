@@ -49,7 +49,7 @@ This tool's low–high band for how much ISK a Reserve Bank has gained during th
 _Avoid_: Reserve value, reserve balance (implies measured)
 
 **Bounty Assumptions**:
-The tunable figures that turn NPC kill counts into ISK: ISK per NPC kill by Security Band, the Main Bank share of bounties, and the Robber Take share.
+The tunable figures that turn NPC kill counts into ISK: ISK per NPC kill by Security Band, the Payout Cycle length, the Main Bank share of bounties, the Robber Take share, and the reserve fill share band.
 _Avoid_: Magic numbers, constants
 
 **Warming Up**:
@@ -57,14 +57,14 @@ A System whose recorded history does not yet cover a full Payout Cycle, so its M
 _Avoid_: Pending, no data
 
 **Surge**:
-A rise in a System's Main Bank Ceiling since the previous pull that meets or exceeds the Robber's chosen Surge Threshold. Drops are never Surges.
+A rise in a System's Main Bank Ceiling since the previous pull that meets or exceeds the Robber's chosen Surge Threshold. Drops are never Surges, and neither is a rise while either ceiling is Warming Up.
 _Avoid_: Change, spike, highlight
 
 **Surge Threshold**:
 The minimum ISK increase, set by the Robber, for a rise to count as a Surge.
 
 **Stale**:
-A System whose last successful pull is more than an hour old, so its figures may lag reality. Data under an hour old is Recent.
+Figures whose last successful pull is an hour old or more, so they may lag reality. Every System in a Region shares one pull, so Stale applies to the whole Region view. Figures under an hour old are Recent.
 _Avoid_: Outdated, expired
 
 **ESS Presence Unconfirmed**:
@@ -79,7 +79,7 @@ The top-level area a Robber filters by; contains Constellations.
 A group of Systems within a Region; the middle level of the browse hierarchy, reported with the sum of its Systems' Main Bank Ceilings.
 
 **System**:
-A single nullsec solar system; the unit a Main Bank Ceiling is reported for. Wormhole space and Pochven are excluded.
+A single nullsec solar system; the unit a Main Bank Ceiling is reported for. Wormhole space, Pochven and the Jove Regions are excluded.
 _Avoid_: Solar system, star
 
 **Security Band**:

@@ -1,5 +1,7 @@
 # ESS Robber Intel: v1 design
 
+Status: implemented in v1. [What shipped differently](#what-shipped-differently) lists the deviations from this design.
+
 Goal: show a Robber, for a chosen Region, which nullsec Systems could hold the most ISK in their ESS right now. Vocabulary is defined in [GLOSSARY.md](../GLOSSARY.md); the core modelling decision is [ADR 0001](adr/0001-main-bank-ceiling-from-npc-kills.md).
 
 ## Shape
@@ -49,6 +51,13 @@ All figures below are Bounty Assumptions in one config file.
 - **Freshness**: "data as of" (ESI Last-Modified) plus time since the last successful pull. Older than 1 hour is Stale. A global banner reports a failed or stopped sync. Warming Up is a separate signal.
 - **Dotlan**: right-click any Region, Constellation or System to open it on evemaps.dotlan.net. Verify the URL shape for each level before building.
 - The UI states that Robberies and payouts are invisible, so a ceiling may stay high for up to one Payout Cycle after the bank was emptied.
+
+## What shipped differently
+
+- Jove Regions (10000004, 10000017 and 10000019) are excluded with wormhole space and Pochven, because they are unreachable. See `isInScopeRegion` in `src/server/sync/universe.ts`.
+- Constellation totals are computed in the browser with `constellationCeiling`, not sent by the API, so a total cannot disagree with the Systems it sums.
+- ESS Presence Unconfirmed is not stored. The store derives `essPresenceUnconfirmed` from `sovKind === "npc"`, and the API sends only `sovKind`.
+- The API contract is the set of types in `src/domain/region-view.ts`, shared by the server and the UI.
 
 ## Deferred (v2+)
 
