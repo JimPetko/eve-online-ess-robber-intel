@@ -11,10 +11,13 @@ import {
 } from "../store/store.ts";
 
 export const POCHVEN_REGION_ID = 10000070;
+/** UUA-F4, J7HZ-F and A821-A: nullsec on paper, but no gate leads in. */
+export const JOVE_REGION_IDS: ReadonlySet<number> = new Set([10000004, 10000017, 10000019]);
 export const FIRST_WORMHOLE_REGION_ID = 11000000;
 
-export function isKspaceRegion(id: RegionId): boolean {
-  return id < FIRST_WORMHOLE_REGION_ID && id !== POCHVEN_REGION_ID;
+/** Reachable k-space: no wormhole space, Pochven or Jove Regions. */
+export function isInScopeRegion(id: RegionId): boolean {
+  return id < FIRST_WORMHOLE_REGION_ID && id !== POCHVEN_REGION_ID && !JOVE_REGION_IDS.has(id);
 }
 
 export interface UniverseSyncDeps {
@@ -49,7 +52,7 @@ async function fetchRegionTree(esi: Esi, id: RegionId): Promise<RegionTree> {
 }
 
 /**
- * Fetches static data for k-space Regions not yet stored (each Region written atomically with its
+ * Fetches static data for in-scope Regions not yet stored (each Region written atomically with its
  * Constellations and Systems), then refreshes sovereignty for every stored System. Safe to rerun:
  * a failed Region is retried next run, and stored Regions are not refetched.
  */
@@ -68,7 +71,7 @@ export async function syncUniverse({
 
   try {
     const known = knownRegionIds(db);
-    const missing = (await esi.regionIds()).data.filter((id) => isKspaceRegion(id) && !known.has(id));
+    const missing = (await esi.regionIds()).data.filter((id) => isInScopeRegion(id) && !known.has(id));
     log(`universe: ${String(known.size)} regions stored, ${String(missing.length)} to fetch`);
 
     await Promise.all(

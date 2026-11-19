@@ -55,6 +55,38 @@ test("reopening a file database keeps data and does not rerun migrations", () =>
   }
 });
 
+test("upgrading a database drops Jove Regions stored before they were out of scope", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ess-store-"));
+  try {
+    const path = join(dir, "test.sqlite");
+    const old = openDb(path);
+    const tree = (region: number, constellation: number, system: number) => ({
+      id: region as RegionId,
+      name: String(region),
+      constellations: [
+        {
+          id: constellation as ConstellationId,
+          name: String(constellation),
+          systems: [{ id: sys(system), name: String(system), securityStatus: -0.5 }],
+        },
+      ],
+    });
+    upsertRegionTree(old, tree(10000001, 20000001, 30000001));
+    upsertRegionTree(old, tree(10000017, 20000201, 30001401));
+    recordKillSnapshot(old, new Date(), new Map([[sys(30000001), 3], [sys(30001401), 9]]));
+    old.exec("PRAGMA user_version = 1");
+    old.close();
+
+    const db = openDb(path);
+    expect(listNullsecSystems(db).map((s) => s.id)).toEqual([30000001]);
+    expect(db.prepare("SELECT id FROM regions").all()).toEqual([{ id: 10000001 }]);
+    expect(db.prepare("SELECT system_id FROM kill_snapshots").all()).toEqual([{ system_id: 30000001 }]);
+    db.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("lists only nullsec Systems, with sovereignty and ESS Presence Unconfirmed", () => {
   const db = seed();
   expect(listNullsecSystems(db).map((s) => s.sovKind)).toEqual([null, null, null]);
