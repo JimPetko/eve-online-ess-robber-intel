@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "vitest";
-import type { AllianceId, ConstellationId, FactionId, RegionId, SystemId } from "../ids.ts";
+import type { AllianceId, ConstellationId, FactionId, RegionId, SystemId } from "../../domain/index.ts";
 import { openDb, SCHEMA_VERSION } from "./db.ts";
 import {
   finishSyncRun,
@@ -10,6 +10,7 @@ import {
   listNullsecSystems,
   pruneKillSnapshots,
   recordKillSnapshot,
+  regionKills,
   replaceSovereignty,
   startSyncRun,
   upsertRegionTree,
@@ -50,6 +51,38 @@ test("reopening a file database keeps data and does not rerun migrations", () =>
     expect(second.prepare("PRAGMA user_version").get()).toEqual({ user_version: SCHEMA_VERSION });
     expect(second.prepare("SELECT name FROM regions").all()).toEqual([{ name: "Derelik" }]);
     second.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("upgrading a database drops Jove Regions stored before they were out of scope", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ess-store-"));
+  try {
+    const path = join(dir, "test.sqlite");
+    const old = openDb(path);
+    const tree = (region: number, constellation: number, system: number) => ({
+      id: region as RegionId,
+      name: String(region),
+      constellations: [
+        {
+          id: constellation as ConstellationId,
+          name: String(constellation),
+          systems: [{ id: sys(system), name: String(system), securityStatus: -0.5 }],
+        },
+      ],
+    });
+    upsertRegionTree(old, tree(10000001, 20000001, 30000001));
+    upsertRegionTree(old, tree(10000017, 20000201, 30001401));
+    recordKillSnapshot(old, new Date(), new Map([[sys(30000001), 3], [sys(30001401), 9]]));
+    old.exec("PRAGMA user_version = 1");
+    old.close();
+
+    const db = openDb(path);
+    expect(listNullsecSystems(db).map((s) => s.id)).toEqual([30000001]);
+    expect(db.prepare("SELECT id FROM regions").all()).toEqual([{ id: 10000001 }]);
+    expect(db.prepare("SELECT system_id FROM kill_snapshots").all()).toEqual([{ system_id: 30000001 }]);
+    db.close();
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -109,6 +142,37 @@ test("rejects snapshots for Systems the universe sync has not stored", () => {
   expect(() => {
     recordKillSnapshot(db, new Date(), new Map([[sys(31000001), 1]]));
   }).toThrow(/FOREIGN KEY/);
+});
+
+test("regionKills returns only that Region's in-scope Systems, each with its history oldest first", () => {
+  const db = seed();
+  upsertRegionTree(db, {
+    id: 10000002 as RegionId,
+    name: "Other",
+    constellations: [
+      { id: 20000002 as ConstellationId, name: "Far", systems: [{ id: sys(30000009), name: "Far", securityStatus: -1 }] },
+    ],
+  });
+  const t1 = new Date("2026-11-18T11:00:00Z");
+  const t2 = new Date("2026-11-18T12:00:00Z");
+  recordKillSnapshot(db, t2, new Map([[sys(30000003), 4], [sys(30000009), 8]]));
+  recordKillSnapshot(db, t1, new Map([[sys(30000003), 2]]));
+
+  const { systems, latestRun, latestSuccess } = regionKills(db, 10000001 as RegionId);
+
+  expect(systems.map((s) => [s.name, s.history])).toEqual([
+    ["Zero", []],
+    [
+      "Deep",
+      [
+        { hourEnding: t1, npcKills: 2 },
+        { hourEnding: t2, npcKills: 4 },
+      ],
+    ],
+    ["Empty", []],
+  ]);
+  expect([latestRun, latestSuccess]).toEqual([null, null]);
+  expect(regionKills(db, 10009999 as RegionId).systems).toEqual([]);
 });
 
 test("records sync runs and reports the latest per kind", () => {

@@ -4,9 +4,9 @@ import { openDb } from "../store/db.ts";
 import { latestSyncRun, listNullsecSystems } from "../store/store.ts";
 import { syncUniverse } from "./universe.ts";
 
-// A tiny universe: one k-space Region with two Constellations, plus Pochven and a wormhole Region.
+// A tiny universe: one k-space Region with two Constellations, plus Pochven, a Jove Region and a wormhole Region.
 const ROUTES: Record<string, unknown> = {
-  "/universe/regions": [10000001, 10000070, 11000001],
+  "/universe/regions": [10000001, 10000004, 10000070, 11000001],
   "/universe/regions/10000001": { region_id: 10000001, name: "Derelik", constellations: [20000001, 20000002] },
   "/universe/constellations/20000001": {
     constellation_id: 20000001,
@@ -53,13 +53,14 @@ function fakeEsi(overrides: Record<string, number> = {}) {
   return { esi, requested };
 }
 
-test("stores nullsec Systems with sovereignty and skips wormhole space and Pochven", async () => {
+test("stores nullsec Systems with sovereignty and skips wormhole space, Pochven and Jove space", async () => {
   const db = openDb(":memory:");
   const { esi, requested } = fakeEsi();
 
   const result = await syncUniverse({ esi, db });
 
   expect(result).toMatchObject({ ok: true, regionsFetched: 1, systemsFetched: 3, errors: [] });
+  expect(requested).not.toContain("/universe/regions/10000004");
   expect(requested).not.toContain("/universe/regions/10000070");
   expect(requested).not.toContain("/universe/regions/11000001");
   expect(listNullsecSystems(db)).toEqual([

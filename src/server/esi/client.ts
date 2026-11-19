@@ -1,4 +1,4 @@
-import type { AllianceId, ConstellationId, FactionId, RegionId, SystemId } from "../ids.ts";
+import type { AllianceId, ConstellationId, FactionId, RegionId, SystemId } from "../../domain/index.ts";
 import { arrayOf, branded, finite, integer, object, optional, type Parser, string } from "./parse.ts";
 
 export const ESI_BASE_URL = "https://esi.evetech.net";
