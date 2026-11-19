@@ -235,13 +235,36 @@ async function tallyDaily(tally, userAgent) {
   return true;
 }
 
-/** Earlier years are rolled up into one .tar.xz of plain .json files, streamed here. */
-async function tallyRollup(tally, userAgent) {
-  const res = await get(`${EVEREF}/system-kills-${tally.month.slice(0, 4)}.tar.xz`, userAgent);
-  const tar = Readable.fromWeb(new xz.XzReadableStream(res.body));
+/** Reads a NUL-terminated header field. */
+function field(block, start, end) {
+  const nul = block.indexOf(0, start);
+  return block.toString("utf8", start, nul === -1 || nul > end ? end : nul);
+}
+
+/** The `path` record of a pax extended header, made of "<len> <key>=<value>\n" records. */
+function paxPath(body) {
+  for (let i = 0; i < body.length; ) {
+    const space = body.indexOf(0x20, i);
+    if (space === -1) break;
+    const len = parseInt(body.toString("ascii", i, space), 10);
+    if (!(len > 0)) break;
+    const record = body.toString("utf8", space + 1, i + len - 1);
+    if (record.startsWith("path=")) return record.slice(5);
+    i += len;
+  }
+  return null;
+}
+
+/**
+ * Yields each regular file in a tar stream as { name, body }. Honours the
+ * ustar name prefix, pax `path` and GNU long names; skips every other entry
+ * type. Base-256 sizes (entries over 8 GiB) are not supported.
+ */
+export async function* tarFiles(chunks) {
   let buffered = Buffer.alloc(0);
-  let entry = null; // { name, size, skip }
-  for await (const chunk of tar) {
+  let entry = null; // { type, name, size, padded }
+  let longName = null; // from a pax or GNU long-name entry, for the next entry
+  for await (const chunk of chunks) {
     buffered = Buffer.concat([buffered, chunk]);
     for (;;) {
       if (entry === null) {
@@ -249,16 +272,38 @@ async function tallyRollup(tally, userAgent) {
         const header = buffered.subarray(0, 512);
         buffered = buffered.subarray(512);
         if (header.every((b) => b === 0)) continue;
-        const name = header.toString("utf8", 0, 100).replace(/\0.*$/s, "");
-        const size = parseInt(header.toString("ascii", 124, 136).replace(/\0.*$/s, "").trim() || "0", 8);
-        entry = { name, size, padded: Math.ceil(size / 512) * 512 };
+        const size = parseInt(field(header, 124, 136).trim() || "0", 8);
+        const name = field(header, 0, 100);
+        // Only POSIX ustar has a prefix; GNU headers keep other data there.
+        const prefix = header.toString("latin1", 257, 263) === "ustar\0" ? field(header, 345, 500) : "";
+        entry = {
+          type: String.fromCharCode(header[156]),
+          name: prefix === "" ? name : `${prefix}/${name}`,
+          size,
+          padded: Math.ceil(size / 512) * 512,
+        };
       }
       if (buffered.length < entry.padded) break;
-      if (entry.name.endsWith(".json") && tally.wants(entry.name) !== null)
-        tally.add(entry.name, JSON.parse(buffered.toString("utf8", 0, entry.size)));
+      const body = buffered.subarray(0, entry.size);
       buffered = buffered.subarray(entry.padded);
+      const { type, name } = entry;
       entry = null;
+      if (type === "x") longName = paxPath(body) ?? longName;
+      else if (type === "L") longName = field(body, 0, body.length);
+      else if (type === "g") continue;
+      else {
+        if (type === "0" || type === "\0") yield { name: longName ?? name, body };
+        longName = null;
+      }
     }
+  }
+}
+
+/** Earlier years are rolled up into one .tar.xz of plain .json files, streamed here. */
+async function tallyRollup(tally, userAgent) {
+  const res = await get(`${EVEREF}/system-kills-${tally.month.slice(0, 4)}.tar.xz`, userAgent);
+  for await (const { name, body } of tarFiles(Readable.fromWeb(new xz.XzReadableStream(res.body)))) {
+    if (name.endsWith(".json") && tally.wants(name) !== null) tally.add(name, JSON.parse(body.toString("utf8")));
   }
 }
 
