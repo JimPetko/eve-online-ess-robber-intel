@@ -13,3 +13,4 @@ Public ESI exposes no ESS bank balances and no bounty ISK, only an hourly `npc_k
 - A robbed or freshly paid-out bank keeps showing a full ceiling until its contributions age out of the window (up to one Payout Cycle). The UI must say so.
 - Accuracy depends on the Bounty Assumptions (the ~40% Main Bank share and ISK per kill are unverified). Calibration against real payouts from a Ratter's wallet journal needs SSO and is planned for v2.
 - Any future "real" bank figure would be a different term, not a refinement of this one.
+- The Reserve Bank gets the same treatment, inverted: it never pays out, so 30 days of history yields only a floor on accrual, shown as a low–high band because CCP has never published its fill share (player estimates span 5–20%). See [research](../research/reserve-bank.md). It ships provisionally and is cut if it misleads more than it helps.

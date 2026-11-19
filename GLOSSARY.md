@@ -45,7 +45,7 @@ The share of a Main Bank Ceiling a Robber would actually walk away with (about 8
 _Avoid_: Loot, profit
 
 **Reserve Bank Estimate**:
-This tool's model of a Reserve Bank's balance, built from collected history. Provisional: kept only if it proves useful.
+This tool's low–high band for how much ISK a Reserve Bank has gained during the history we hold. A floor on the true balance, never the balance itself. Provisional: kept only if it proves useful.
 _Avoid_: Reserve value, reserve balance (implies measured)
 
 **Bounty Assumptions**:
