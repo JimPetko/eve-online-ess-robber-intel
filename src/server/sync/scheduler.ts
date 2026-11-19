@@ -78,16 +78,24 @@ export function startScheduler({
     pending.add(handle);
   }
 
+  // A sync that throws (e.g. a failed SQLite write) still reschedules, so one bad hour can't end polling.
   async function universe(): Promise<void> {
-    const result = await syncUniverse({ esi, db, log, now });
-    later(result.ok ? UNIVERSE_INTERVAL_MS : RETRY_DELAY_MS, universe);
+    let delay = RETRY_DELAY_MS;
+    try {
+      if ((await syncUniverse({ esi, db, log, now })).ok) delay = UNIVERSE_INTERVAL_MS;
+    } finally {
+      later(delay, universe);
+    }
   }
 
   async function kills(): Promise<void> {
-    const result = await pollKills({ esi, db, log, now });
-    const delay = nextKillsPollDelay(result, now(), random);
-    log(`kills: next poll in ${String(Math.round(delay / 1000))}s`);
-    later(delay, kills);
+    let delay = RETRY_DELAY_MS;
+    try {
+      delay = nextKillsPollDelay(await pollKills({ esi, db, log, now }), now(), random);
+    } finally {
+      log(`kills: next poll in ${String(Math.round(delay / 1000))}s`);
+      later(delay, kills);
+    }
   }
 
   const lastUniverse = latestSuccessfulSyncRun(db, "universe");

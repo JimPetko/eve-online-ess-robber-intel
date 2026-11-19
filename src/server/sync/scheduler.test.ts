@@ -142,6 +142,21 @@ test("retries a failed kills poll after the fixed delay, then follows Expires ag
   expect(h.delays()).toEqual([35 * 60_000 + 0.5 * MAX_JITTER_MS, UNIVERSE_INTERVAL_MS]);
 });
 
+test("keeps both syncs scheduled when recording a sync run throws", async () => {
+  const h = harness();
+  const prepare = h.db.prepare.bind(h.db);
+  h.db.prepare = (sql: string) => {
+    if (sql.startsWith("INSERT INTO sync_runs")) throw new Error("disk I/O error");
+    return prepare(sql);
+  };
+
+  startScheduler(h);
+
+  await vi.waitFor(() => {
+    expect(h.delays()).toEqual([RETRY_DELAY_MS, RETRY_DELAY_MS]);
+  });
+});
+
 test("stop cancels pending syncs", async () => {
   const h = harness();
   const scheduler = startScheduler(h);
