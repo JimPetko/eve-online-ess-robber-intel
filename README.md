@@ -2,7 +2,7 @@
 
 ESS Robber Intel ranks the sov-held nullsec Systems in an EVE Online Region by how much ISK their Encounter Surveillance System (ESS) could hold. It is for Robbers: players who break into an ESS to steal its banked ISK.
 
-Public ESI reports no bank balances, only an hourly NPC kill count per System. The Main Bank Ceiling is therefore an upper bound, modelled from `npc_kills` and the Bounty Assumptions. The true balance lies between zero and the ceiling. The Reserve Bank Estimate is a floor band on what the Reserve Bank gained during the history the tool holds, and Robberies are invisible, so a robbed bank keeps its ceiling for up to one Payout Cycle.
+Public ESI reports no bank balances, only an hourly NPC kill count per System. The Main Bank Ceiling is therefore an upper bound, modelled from `npc_kills` and the Bounty Assumptions. The true balance lies between zero and the ceiling. Robberies are invisible, so a robbed bank keeps its ceiling for up to one Payout Cycle.
 
 - [GLOSSARY.md](GLOSSARY.md) defines every term in this README.
 - [docs/DESIGN.md](docs/DESIGN.md) is the v1 design.
@@ -59,11 +59,11 @@ All responses are JSON. The types are in `src/domain/region-view.ts`.
 |---|---|
 | `GET /api/health` | `{ "ok": true }` |
 | `GET /api/regions` | Regions with at least one sov-held nullsec System, by name. |
-| `GET /api/regions/:id` | One Region: sync status, Constellations, and per System the Main Bank Ceiling, previous ceiling, Robber Take and Reserve Bank Estimate. An id that is not a whole number returns 400. An unknown Region, or one without sov-held nullsec, returns 404. |
+| `GET /api/regions/:id` | One Region: sync status, Constellations, and per System the Main Bank Ceiling, previous ceiling and Robber Take. An id that is not a whole number returns 400. An unknown Region, or one without sov-held nullsec, returns 404. |
 
 ## Bounty Assumptions
 
-`DEFAULT_BOUNTY_ASSUMPTIONS` in `src/domain/bounty-assumptions.ts` holds every figure that turns kill counts into ISK: the Payout Cycle length, the Main Bank share, the Robber Take share, the reserve fill share, and ISK per NPC kill by Region. Each carries its source and confidence in a comment. Sources and method: [docs/research/bounty-calibration.md](docs/research/bounty-calibration.md).
+`DEFAULT_BOUNTY_ASSUMPTIONS` in `src/domain/bounty-assumptions.ts` holds every figure that turns kill counts into ISK: the Payout Cycle length, the Main Bank share, the Robber Take share, and ISK per NPC kill by Region. Each carries its source and confidence in a comment. Sources and method: [docs/research/bounty-calibration.md](docs/research/bounty-calibration.md).
 
 ISK per NPC kill comes from `src/domain/isk-per-npc-kill.generated.ts`: CCP's Monthly Economic Report bounties per Region ÷ that Region's ESI NPC kills as archived by EVE Ref. A Region with fewer than 100,000 kills that month, or under 90% of them in sov nullsec, uses the pooled fallback. Recalibrate each month once CCP publishes the MER:
 
@@ -104,5 +104,5 @@ The scheduled poller is the only code that calls ESI. Browsers call only this AP
 
 - Robberies and payouts are invisible. A ceiling can stay high for up to one Payout Cycle after the bank was emptied.
 - ISK per NPC kill and the Main Bank share (40%) are Region-level monthly averages from CCP's MER. A single System farmed at the DBS floor, or sitting at its maximum, can differ. The 50% in patch 20.02 (2022-02-08) applied only at the DBS floor, which no longer exists. See [docs/research/bounty-calibration.md](docs/research/bounty-calibration.md).
-- The Reserve Bank Estimate is provisional. It is cut if it misleads more than it helps.
+- The tool shows no Reserve Bank figure. A reserve key pays out on a fixed curve whatever the balance, so a number would not change where a Robber goes. See [docs/research/reserve-bank.md](docs/research/reserve-bank.md#decision-2026-11-19-cut-the-reserve-bank-estimate).
 - Only sov-held nullsec has an ESS, so NPC nullsec, unclaimed nullsec, wormhole space, Pochven and the Jove Regions are excluded. Scope follows the daily sovereignty refresh, so a System that loses sovereignty can show for up to a day after it has no ESS.

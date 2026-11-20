@@ -77,12 +77,6 @@ function system(
     mainBank,
     previousMainBank,
     robberTake: robberTake(mainBank.ceiling),
-    // Roughly a week of history at the fixture's kill rate.
-    reserve: {
-      low: isk(mainBank.ceiling * 6),
-      high: isk(mainBank.ceiling * 24),
-      hoursCovered: mainBank.status === "ready" ? 168 : mainBank.hoursCovered,
-    },
   };
 }
 

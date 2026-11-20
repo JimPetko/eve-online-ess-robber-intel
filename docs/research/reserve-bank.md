@@ -3,6 +3,19 @@
 Researched 2026-11-18. Confidence: H = CCP primary source, M = CCP-adjacent or consistent player sources, L = single player claim or speculation.
 Not retrieved or verified: the Oct 2020 DBS devblog itself, full MER contents (search snippets only), 2026 patch notes, any ESI behaviour for ESS.
 
+## Decision 2026-11-19: cut the Reserve Bank Estimate
+
+The provisional estimate (a 30-day floor on accrual, kills × ISK per kill × r / (1 − r), r = 0.05–0.10) is removed from the API and UI. It answered a question no Robber acts on:
+
+- **Payout ignores the balance.** A key pays on a fixed per-minute curve that ramps to a peak and falls until the 15 or 45 minutes run out. CCP_Psych, Grand Heist test thread (16 Jul 2021): "expect a max payout per tick of around 150mil", with no reference to bank size. Players confirm it "doesn't scale with the amount of isk in the bank" (about 35M taken from a 17B bank), and in Feb 2022 a proposal to scale it was never shipped ([test thread p2](https://forums.eveonline.com/t/the-grand-heist-in-testing/320160?page=2), [p6](https://forums.eveonline.com/t/the-grand-heist-in-testing/320160?page=6), [Olmeca Gold](https://forums.eveonline.com/t/ess-reserve-bank-an-underwhelming-design-and-what-it-could-have-been/349355)) (M, close to H).
+- **The balance is never the limit in practice.** Reserves held about 20T at launch ([Grand Heist](https://eveonline.com/news/view/the-grand-heist)) (H). Reported banks run 17–48B or more, and a key drains at most a few billion. No report of an emptied reserve was found (M).
+- **Our own data agrees.** On 2026-11-19, with 8 hours of history, the busiest System showed 0.30–0.63B. Over 30 days that scales to roughly 25–50B, far above any key's take, so the band could only ever say "more than a key can drain".
+- **Players choose by key quadrant, travel and risk**, not balance. A reserve heist is a planned group activity started with a lowsec key that alerts the whole Region; Main Bank robbing is opportunistic. The in-space ESS UI shows both banks, and players quote reserve sizes, so they likely see the true figure in game (L for the Agency window).
+- **No change since 2022 was found** to key payouts. The 2024 and Legion (2025) changes touch only the Main Bank room; Fractured Skies (Nov 2026) does not mention the ESS (M; Equinox, Revenant and Catalyst notes not fully read).
+- A floor in billions next to the Main Bank Ceiling invited reading it as a balance, and its fill share r was never confirmed by CCP.
+
+The sections below are kept as the record of how the estimate was built.
+
 ## Correction to the premise
 The Reserve Bank existed from the ESS rework (patch 18.11, Nov 2020) but was locked with no way to open it until **The Grand Heist (27 Jul 2021)** added keys. The ~20T was accumulated organically, not seeded.
 - [ESS Update devblog, 2020-10-30](https://www.eveonline.com/news/view/encounter-surveillance-system-update): keys "will come from gameplay content at a later date" (H)

@@ -160,7 +160,6 @@ export function App({ api }: { api: Api }) {
           <p className="note">
             Robberies and payouts are invisible to this tool, so a Main Bank Ceiling can stay high for up to one
             Payout Cycle ({formatAge(DEFAULT_BOUNTY_ASSUMPTIONS.payoutCycleMinutes * 60_000)}) after the bank was emptied. The true balance lies between zero and the ceiling.
-            Reserve Bank Estimates are a floor on what the bank gained during our history, never its balance.
             Right-click a Region, Constellation or System to open it on Dotlan.
           </p>
         </main>

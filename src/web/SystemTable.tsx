@@ -11,7 +11,7 @@ import {
 import type { DotlanTarget } from "./dotlan.ts";
 import { formatIsk } from "./format.ts";
 
-export type SortKey = "name" | "mainBank" | "robberTake" | "reserve";
+export type SortKey = "name" | "mainBank" | "robberTake";
 export type Sort = { readonly key: SortKey; readonly dir: "asc" | "desc" };
 export type ViewMode = "flat" | "grouped";
 
@@ -20,14 +20,12 @@ export const DEFAULT_SORT: Sort = { key: "mainBank", dir: "desc" };
 const NUMERIC: Record<Exclude<SortKey, "name">, (s: SystemView) => number> = {
   mainBank: (s) => s.mainBank.ceiling,
   robberTake: (s) => s.robberTake,
-  reserve: (s) => s.reserve.low,
 };
 
 const COLUMNS: readonly { key: SortKey; label: string; className: string }[] = [
   { key: "name", label: "System", className: "col-name" },
   { key: "mainBank", label: "Main Bank Ceiling", className: "num" },
   { key: "robberTake", label: "Robber Take", className: "num" },
-  { key: "reserve", label: "Reserve Bank Estimate (floor)", className: "num col-reserve" },
 ];
 
 /** Clicking the active column flips it; a new column starts richest (or A) first. */
@@ -135,7 +133,6 @@ export function SystemTable({ view, mode, sort, onSort, surgeThreshold, surgesOn
               <td className="col-sec" />
               <td className="num">{formatIsk(g.total.ceiling)}</td>
               <td className="num">{formatIsk(g.sum("robberTake"))}</td>
-              <td className="num col-reserve" />
             </tr>
             {open && g.shown.map(row)}
           </tbody>
@@ -227,11 +224,6 @@ function SystemRow({ system: s, surge, onDotlan }: { system: SystemView; surge: 
         {formatIsk(s.mainBank.ceiling)}
       </td>
       <td className="num">{formatIsk(s.robberTake)}</td>
-      <td className="num col-reserve" title={`Gained over ${String(s.reserve.hoursCovered)}h of history; a floor, not the balance`}>
-        {s.reserve.low === 0 && s.reserve.high === 0
-          ? "—"
-          : `≥ ${formatIsk(s.reserve.low)}–${formatIsk(s.reserve.high)}`}
-      </td>
     </tr>
   );
 }
@@ -240,7 +232,7 @@ function EmptyBody({ surgesOnly }: { surgesOnly: boolean }) {
   return (
     <tbody>
       <tr>
-        <td colSpan={5} className="empty">
+        <td colSpan={4} className="empty">
           {surgesOnly ? "No Surges at this Surge Threshold." : "No Systems synced for this Region yet."}
         </td>
       </tr>

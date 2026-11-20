@@ -1,6 +1,5 @@
 import type { ConstellationId, Isk, RegionId, SystemId } from "./ids.ts";
 import type { MainBankCeiling } from "./main-bank.ts";
-import type { ReserveBankEstimate } from "./reserve-bank.ts";
 
 /**
  * The JSON contract between the API and the web UI. Every type here survives
@@ -45,7 +44,6 @@ export type SystemView = {
   readonly previousMainBank: MainBankCeiling | null;
   /** Sent rather than derived, because the server's Bounty Assumptions are configurable. */
   readonly robberTake: Isk;
-  readonly reserve: ReserveBankEstimate;
 };
 
 /**
