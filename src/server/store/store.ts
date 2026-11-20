@@ -14,7 +14,8 @@ type Row = Record<string, SQLOutputValue>;
 
 function num(row: Row, key: string): number {
   const value = row[key];
-  if (typeof value !== "number") throw new Error(`column ${key}: expected number, got ${typeof value}`);
+  if (typeof value !== "number")
+    throw new Error(`column ${key}: expected number, got ${typeof value}`);
   return value;
 }
 
@@ -24,7 +25,8 @@ function numOrNull(row: Row, key: string): number | null {
 
 function str(row: Row, key: string): string {
   const value = row[key];
-  if (typeof value !== "string") throw new Error(`column ${key}: expected string, got ${typeof value}`);
+  if (typeof value !== "string")
+    throw new Error(`column ${key}: expected string, got ${typeof value}`);
   return value;
 }
 
@@ -36,12 +38,21 @@ export interface RegionTree {
   readonly constellations: readonly {
     readonly id: ConstellationId;
     readonly name: string;
-    readonly systems: readonly { readonly id: SystemId; readonly name: string; readonly securityStatus: number }[];
+    readonly systems: readonly {
+      readonly id: SystemId;
+      readonly name: string;
+      readonly securityStatus: number;
+    }[];
   }[];
 }
 
 export function knownRegionIds(db: DatabaseSync): Set<RegionId> {
-  return new Set(db.prepare("SELECT id FROM regions").all().map((row) => num(row, "id") as RegionId));
+  return new Set(
+    db
+      .prepare("SELECT id FROM regions")
+      .all()
+      .map((row) => num(row, "id") as RegionId),
+  );
 }
 
 /** Writes a Region with all its Constellations and Systems atomically, so a stored Region is always complete. */
@@ -63,7 +74,12 @@ export function upsertRegionTree(db: DatabaseSync, region: RegionTree): void {
     for (const constellation of region.constellations) {
       upsertConstellation.run(constellation.id, region.id, constellation.name);
       for (const system of constellation.systems) {
-        upsertSystem.run(system.id, constellation.id, system.name, system.securityStatus);
+        upsertSystem.run(
+          system.id,
+          constellation.id,
+          system.name,
+          system.securityStatus,
+        );
       }
     }
   });
@@ -76,15 +92,25 @@ export interface SovereigntyEntry {
 }
 
 /** Replaces every stored System's sovereignty. Systems absent from the map are unclaimed. */
-export function replaceSovereignty(db: DatabaseSync, entries: readonly SovereigntyEntry[]): void {
+export function replaceSovereignty(
+  db: DatabaseSync,
+  entries: readonly SovereigntyEntry[],
+): void {
   const reset = db.prepare(
     "UPDATE systems SET sov_kind = 'unclaimed', sov_alliance_id = NULL, sov_faction_id = NULL",
   );
-  const set = db.prepare("UPDATE systems SET sov_kind = ?, sov_alliance_id = ?, sov_faction_id = ? WHERE id = ?");
+  const set = db.prepare(
+    "UPDATE systems SET sov_kind = ?, sov_alliance_id = ?, sov_faction_id = ? WHERE id = ?",
+  );
   transaction(db, () => {
     reset.run();
     for (const entry of entries) {
-      const kind: SovKind = entry.allianceId !== null ? "sov" : entry.factionId !== null ? "npc" : "unclaimed";
+      const kind: SovKind =
+        entry.allianceId !== null
+          ? "sov"
+          : entry.factionId !== null
+            ? "npc"
+            : "unclaimed";
       set.run(kind, entry.allianceId, entry.factionId, entry.systemId);
     }
   });
@@ -106,11 +132,18 @@ export interface NullsecSystem {
  * Every in-scope System (k-space, true security <= 0.0, sov-held as of the last sovereignty
  * refresh), optionally limited to one Region.
  */
-export function listNullsecSystems(db: DatabaseSync, regionId?: RegionId): NullsecSystem[] {
+export function listNullsecSystems(
+  db: DatabaseSync,
+  regionId?: RegionId,
+): NullsecSystem[] {
   const rows =
     regionId === undefined
       ? db.prepare("SELECT * FROM nullsec_systems ORDER BY id").all()
-      : db.prepare("SELECT * FROM nullsec_systems WHERE region_id = ? ORDER BY id").all(regionId);
+      : db
+          .prepare(
+            "SELECT * FROM nullsec_systems WHERE region_id = ? ORDER BY id",
+          )
+          .all(regionId);
   return rows.map((row) => ({
     id: num(row, "id") as SystemId,
     name: str(row, "name"),
@@ -121,6 +154,21 @@ export function listNullsecSystems(db: DatabaseSync, regionId?: RegionId): Nulls
     regionName: str(row, "region_name"),
     sovAllianceId: num(row, "sov_alliance_id") as AllianceId,
   }));
+}
+
+/**
+ * Why no System is in scope: nothing stored yet, no sovereignty refresh has succeeded yet
+ * (sov_kind is still NULL everywhere), or the sovereignty map holds no sov-held nullsec.
+ */
+export function emptyScopeReason(db: DatabaseSync): string {
+  const row = db
+    .prepare("SELECT COUNT(*) AS n, COUNT(sov_kind) AS withSov FROM systems")
+    .get();
+  if (row === undefined || num(row, "n") === 0)
+    return "no Systems stored; the universe sync has not run";
+  if (num(row, "withSov") === 0)
+    return "no sovereignty map stored; the sovereignty refresh has not succeeded yet";
+  return "the sovereignty map shows no sov-held nullsec Systems";
 }
 
 /** Regions holding at least one in-scope System, by name. */
@@ -154,32 +202,59 @@ export function recordKillSnapshot(
   );
   return transaction(db, () => {
     let inserted = 0;
-    for (const [systemId, kills] of npcKills) inserted += Number(insert.run(pulledAt.getTime(), systemId, kills).changes);
+    for (const [systemId, kills] of npcKills)
+      inserted += Number(
+        insert.run(pulledAt.getTime(), systemId, kills).changes,
+      );
     return inserted;
   });
 }
 
 /** Deletes snapshots pulled more than `retentionDays` before `now`. Returns rows deleted. */
-export function pruneKillSnapshots(db: DatabaseSync, now: Date, retentionDays = SNAPSHOT_RETENTION_DAYS): number {
+export function pruneKillSnapshots(
+  db: DatabaseSync,
+  now: Date,
+  retentionDays = SNAPSHOT_RETENTION_DAYS,
+): number {
   const cutoff = now.getTime() - retentionDays * 24 * 60 * 60 * 1000;
-  return Number(db.prepare("DELETE FROM kill_snapshots WHERE pulled_at < ?").run(cutoff).changes);
+  return Number(
+    db.prepare("DELETE FROM kill_snapshots WHERE pulled_at < ?").run(cutoff)
+      .changes,
+  );
 }
 
 export type SyncKind = "universe" | "kills";
 
 export type SyncRunId = number & { readonly __brand: "SyncRunId" };
 
-export function startSyncRun(db: DatabaseSync, kind: SyncKind, startedAt: Date): SyncRunId {
-  const result = db.prepare("INSERT INTO sync_runs (kind, started_at) VALUES (?, ?)").run(kind, startedAt.getTime());
+export function startSyncRun(
+  db: DatabaseSync,
+  kind: SyncKind,
+  startedAt: Date,
+): SyncRunId {
+  const result = db
+    .prepare("INSERT INTO sync_runs (kind, started_at) VALUES (?, ?)")
+    .run(kind, startedAt.getTime());
   return Number(result.lastInsertRowid) as SyncRunId;
 }
 
 export type SyncOutcome =
   | { readonly ok: true; readonly esiLastModified: Date | null }
-  | { readonly ok: false; readonly error: string; readonly esiLastModified: Date | null };
+  | {
+      readonly ok: false;
+      readonly error: string;
+      readonly esiLastModified: Date | null;
+    };
 
-export function finishSyncRun(db: DatabaseSync, id: SyncRunId, finishedAt: Date, outcome: SyncOutcome): void {
-  db.prepare("UPDATE sync_runs SET finished_at = ?, ok = ?, error = ?, esi_last_modified = ? WHERE id = ?").run(
+export function finishSyncRun(
+  db: DatabaseSync,
+  id: SyncRunId,
+  finishedAt: Date,
+  outcome: SyncOutcome,
+): void {
+  db.prepare(
+    "UPDATE sync_runs SET finished_at = ?, ok = ?, error = ?, esi_last_modified = ? WHERE id = ?",
+  ).run(
     finishedAt.getTime(),
     outcome.ok ? 1 : 0,
     outcome.ok ? null : outcome.error,
@@ -199,23 +274,38 @@ export interface SyncRun {
   readonly esiLastModified: Date | null;
 }
 
-function latestRunWhere(db: DatabaseSync, kind: SyncKind, condition: string): SyncRun | null {
+function latestRunWhere(
+  db: DatabaseSync,
+  kind: SyncKind,
+  condition: string,
+): SyncRun | null {
   const row = db
-    .prepare(`SELECT * FROM sync_runs WHERE kind = ? AND ${condition} ORDER BY started_at DESC, id DESC LIMIT 1`)
+    .prepare(
+      `SELECT * FROM sync_runs WHERE kind = ? AND ${condition} ORDER BY started_at DESC, id DESC LIMIT 1`,
+    )
     .get(kind);
   return row === undefined ? null : syncRun(row, kind);
 }
 
 /** Includes a run still in progress. */
-export function latestSyncRun(db: DatabaseSync, kind: SyncKind): SyncRun | null {
+export function latestSyncRun(
+  db: DatabaseSync,
+  kind: SyncKind,
+): SyncRun | null {
   return latestRunWhere(db, kind, "1");
 }
 
-export function latestFinishedSyncRun(db: DatabaseSync, kind: SyncKind): SyncRun | null {
+export function latestFinishedSyncRun(
+  db: DatabaseSync,
+  kind: SyncKind,
+): SyncRun | null {
   return latestRunWhere(db, kind, "finished_at IS NOT NULL");
 }
 
-export function latestSuccessfulSyncRun(db: DatabaseSync, kind: SyncKind): SyncRun | null {
+export function latestSuccessfulSyncRun(
+  db: DatabaseSync,
+  kind: SyncKind,
+): SyncRun | null {
   return latestRunWhere(db, kind, "ok = 1");
 }
 
@@ -262,13 +352,19 @@ export function regionKills(db: DatabaseSync, regionId: RegionId): RegionKills {
     .all(regionId);
   for (const row of rows) {
     const id = num(row, "system_id");
-    const entry: HourlyKills = { hourEnding: new Date(num(row, "pulled_at")), npcKills: num(row, "npc_kills") };
+    const entry: HourlyKills = {
+      hourEnding: new Date(num(row, "pulled_at")),
+      npcKills: num(row, "npc_kills"),
+    };
     const history = histories.get(id);
     if (history) history.push(entry);
     else histories.set(id, [entry]);
   }
   return {
-    systems: listNullsecSystems(db, regionId).map((system) => ({ ...system, history: histories.get(system.id) ?? [] })),
+    systems: listNullsecSystems(db, regionId).map((system) => ({
+      ...system,
+      history: histories.get(system.id) ?? [],
+    })),
     latestRun: latestFinishedSyncRun(db, "kills"),
     latestSuccess: latestSuccessfulSyncRun(db, "kills"),
   };
