@@ -85,6 +85,25 @@ const MIGRATIONS: readonly string[] = [
     JOIN regions r ON r.id = c.region_id
     WHERE s.security_status <= 0.0 AND s.sov_kind = 'sov';
   `,
+  // Accounts for public hosting. Passwords are scrypt hashes; session tokens are stored as
+  // SHA-256 hashes, so a copy of the database yields neither a password nor a live session.
+  `
+  CREATE TABLE accounts (
+    id                   INTEGER PRIMARY KEY,
+    username             TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    password_hash        TEXT NOT NULL,
+    role                 TEXT NOT NULL CHECK (role IN ('admin', 'robber')),
+    must_change_password INTEGER NOT NULL CHECK (must_change_password IN (0, 1)),
+    created_at           TEXT NOT NULL
+  );
+  CREATE TABLE sessions (
+    token_hash TEXT PRIMARY KEY,
+    account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+  );
+  CREATE INDEX sessions_account ON sessions(account_id);
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
