@@ -58,11 +58,41 @@ gh pr list -R "$REPO" --head "$BRANCH" --state all --json number,state,url >"$WO
 read -r PR_STATE PR_URL <<<"$(cal pr-state "$WORK/prs.json") "
 case "$PR_STATE" in
   MERGED) log "$BRANCH already merged: $PR_URL"; plane "$PR_URL" done; exit 0 ;;
-  OPEN) log "$BRANCH already open: $PR_URL; leaving it for a human"; plane "$PR_URL" in-progress; exit 0 ;;
+  # An earlier run may have timed out waiting on checks; pick its PR back up below.
+  OPEN) log "$BRANCH already open: $PR_URL; resuming it"; RESUME_PR_URL="$PR_URL" ;;
 esac
-MAIN_MONTH="$(gh api -H "Accept: application/vnd.github.raw" "repos/$REPO/contents/$GENERATED?ref=main" | cal calibrated-month)"
-if [ "$MAIN_MONTH" = "$TARGET" ]; then log "main is already calibrated for $TARGET; nothing to do"; exit 0; fi
-log "main is calibrated for ${MAIN_MONTH:-nothing}; calibrating $TARGET"
+if [ -z "${RESUME_PR_URL:-}" ]; then
+  MAIN_MONTH="$(gh api -H "Accept: application/vnd.github.raw" "repos/$REPO/contents/$GENERATED?ref=main" | cal calibrated-month)"
+  if [ "$MAIN_MONTH" = "$TARGET" ]; then log "main is already calibrated for $TARGET; nothing to do"; exit 0; fi
+  log "main is calibrated for ${MAIN_MONTH:-nothing}; calibrating $TARGET"
+fi
+
+# Waits for the checks on HEAD_SHA, then merges PR through merge-pr.mjs. Needs PR, PR_URL, HEAD_SHA.
+finish_pr() {
+  log "waiting up to ${CHECKS_TIMEOUT}s for checks on $HEAD_SHA"
+  local deadline state
+  deadline=$(( $(date +%s) + CHECKS_TIMEOUT ))
+  while :; do
+    gh pr view "$PR" -R "$REPO" --json headRefOid,statusCheckRollup >"$WORK/checks.json"
+    state=pending
+    grep -q "\"$HEAD_SHA\"" "$WORK/checks.json" && state="$(cal checks-state "$WORK/checks.json")"
+    [ "$state" != pending ] && break
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      plane "$PR_URL" in-progress
+      die "checks on $PR_URL still pending after ${CHECKS_TIMEOUT}s; PR left open, the next run resumes it"
+    fi
+    sleep 30
+  done
+  if [ "$state" = failed ]; then
+    plane "$PR_URL" in-progress
+    die "checks failed on $PR_URL; PR left open for a human"
+  fi
+  log "checks passed; merging"
+  git checkout --quiet --detach # so gh's --delete-branch is not deleting a checked-out branch
+  node scripts/merge-pr.mjs "$PR" 2>&1 | stamp || { plane "$PR_URL" in-progress; die "merge-pr refused $PR_URL; PR left open"; }
+  plane "$PR_URL" done
+  log "calibrated $TARGET: $PR_URL"
+}
 
 # 2. Fresh checkout of main, then calibrate.
 CHECKOUT="$CACHE/repo"
@@ -85,6 +115,14 @@ fi
 cd "$CHECKOUT"
 log "main at $(git rev-parse --short HEAD)"
 npm ci --no-audit --no-fund --no-update-notifier --loglevel=error 2>&1 | stamp || die "npm ci"
+
+if [ -n "${RESUME_PR_URL:-}" ]; then
+  PR_URL="$RESUME_PR_URL"; PR="${PR_URL##*/}"
+  HEAD_SHA="$(gh pr view "$PR" -R "$REPO" --json headRefOid -q .headRefOid)"
+  if [ "$DRY_RUN" = 1 ]; then log "would wait for checks on $HEAD_SHA and merge $PR_URL"; exit 0; fi
+  finish_pr
+  exit 0
+fi
 
 log "running calibrate-bounties for $TARGET (downloads about 70 MB)"
 CODE=0
@@ -128,26 +166,4 @@ sleep 2 # a new committer time, so the amended commit gets a new SHA
 git commit --quiet --amend --no-edit
 git push --quiet --force origin "HEAD:refs/heads/$BRANCH" 2>&1 | stamp
 HEAD_SHA="$(git rev-parse HEAD)"
-log "waiting up to ${CHECKS_TIMEOUT}s for checks on $HEAD_SHA"
-
-DEADLINE=$(( $(date +%s) + CHECKS_TIMEOUT ))
-while :; do
-  gh pr view "$PR" -R "$REPO" --json headRefOid,statusCheckRollup >"$WORK/checks.json"
-  STATE=pending
-  grep -q "\"$HEAD_SHA\"" "$WORK/checks.json" && STATE="$(cal checks-state "$WORK/checks.json")"
-  [ "$STATE" != pending ] && break
-  if [ "$(date +%s)" -ge "$DEADLINE" ]; then
-    plane "$PR_URL" in-progress
-    die "checks on $PR_URL still pending after ${CHECKS_TIMEOUT}s; PR left open"
-  fi
-  sleep 30
-done
-if [ "$STATE" = failed ]; then
-  plane "$PR_URL" in-progress
-  die "checks failed on $PR_URL; PR left open"
-fi
-log "checks passed; merging"
-git checkout --quiet --detach # so gh's --delete-branch is not deleting the checked-out branch
-node scripts/merge-pr.mjs "$PR" 2>&1 | stamp || { plane "$PR_URL" in-progress; die "merge-pr refused $PR_URL; PR left open"; }
-plane "$PR_URL" done
-log "calibrated $TARGET: $PR_URL"
+finish_pr

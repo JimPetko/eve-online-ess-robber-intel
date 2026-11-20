@@ -6,9 +6,9 @@ A Docker container that recalibrates ISK per NPC kill each month and lands it on
 
 The container runs `run-calibration.sh` daily at 15:00 UTC on days 5 to 28 of each month. Each run works on the previous calendar month (UTC):
 
-1. It exits early if a `calibration/<month>` PR is already merged or open, or if `src/domain/isk-per-npc-kill.generated.ts` on `main` already has that month.
+1. It exits early if a `calibration/<month>` PR is already merged, or if `src/domain/isk-per-npc-kill.generated.ts` on `main` already has that month.
 2. It updates a cached checkout of `main`, runs `npm ci`, and runs `node scripts/calibrate-bounties.mjs <month>`. If CCP has not published that month's MER yet (a 404 on the MER zip), it exits 0, and the next day's run tries again.
-3. It pushes `calibration/<month>` and opens a PR labelled `no-tests-needed`. It waits up to 20 minutes for the checks on the PR head, then merges with `node scripts/merge-pr.mjs`. If a check fails, it leaves the PR open and exits non-zero. The next runs then skip that month until the PR is merged or closed. Closing the PR makes the next run try again.
+3. It pushes `calibration/<month>` and opens a PR labelled `no-tests-needed`. It waits up to 20 minutes for the checks on the PR head, then merges with `node scripts/merge-pr.mjs`. If the checks are still running after 20 minutes, the next run picks the open PR back up, waits again and merges it. If a check fails, it leaves the PR open and exits non-zero, and every later run fails the same way until a human fixes, merges or closes the PR. Closing the PR makes the next run try again from scratch.
 4. If `PLANE_API_KEY` is set, it creates or updates the work item `Recalibrate ISK per NPC kill for <month>` in Plane project `ESS`. The item is Done after a merge and In Progress while the PR is open.
 
 Any other failure exits non-zero with a `FAILED:` log line.
