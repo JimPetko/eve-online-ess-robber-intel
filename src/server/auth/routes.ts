@@ -20,6 +20,7 @@ import {
   type StoredAccount,
 } from "../store/accounts.ts";
 import { refuse, send, sessionView, signedInAs, type Refusal } from "./access.ts";
+import type { Audit } from "./audit.ts";
 import { DUMMY_HASH, hashPassword, verifyPassword } from "./password.ts";
 import { newSessionToken, SESSION_LIFETIME_MS, sessionCookie, tokenHash } from "./session-cookie.ts";
 import type { SignInThrottle } from "./throttle.ts";
@@ -68,9 +69,10 @@ export interface AuthRouteDeps {
   readonly db: DatabaseSync;
   readonly now: () => Date;
   readonly throttle: SignInThrottle;
+  readonly audit: Audit;
 }
 
-export function registerAuthRoutes(app: FastifyInstance, { db, now, throttle }: AuthRouteDeps): void {
+export function registerAuthRoutes(app: FastifyInstance, { db, now, throttle, audit }: AuthRouteDeps): void {
   const secure = (request: FastifyRequest) => request.protocol === "https";
 
   function startSession(request: FastifyRequest, reply: FastifyReply, account: StoredAccount): SessionView {
@@ -112,8 +114,16 @@ export function registerAuthRoutes(app: FastifyInstance, { db, now, throttle }: 
         (await verifyPassword(password, account?.passwordHash ?? DUMMY_HASH)) &&
         account !== null,
     );
-    if (typeof verified !== "boolean") return tooManyAttempts(reply, verified.retryAfterSeconds);
-    if (!verified || account === null) return send(reply, INVALID_CREDENTIALS);
+    const { ip } = request;
+    if (typeof verified !== "boolean") {
+      audit({ event: "signInThrottled", username, ip });
+      return tooManyAttempts(reply, verified.retryAfterSeconds);
+    }
+    if (!verified || account === null) {
+      audit({ event: "signInFailed", username, ip });
+      return send(reply, INVALID_CREDENTIALS);
+    }
+    audit({ event: "signInSucceeded", username: account.username, ip });
     deleteExpiredSessions(db, now());
     return startSession(request, reply, account);
   });
@@ -143,6 +153,7 @@ export function registerAuthRoutes(app: FastifyInstance, { db, now, throttle }: 
     if (!verified) return send(reply, refuse(401, "invalidCredentials", "Your current password is wrong."));
     const passwordHash = await hashPassword(newPassword);
     replacePassword(db, account.id, passwordHash);
+    audit({ event: "passwordChanged", username: account.username, ip: request.ip });
     return startSession(request, reply, { ...account, passwordHash, mustChangePassword: false });
   });
 
@@ -151,6 +162,8 @@ export function registerAuthRoutes(app: FastifyInstance, { db, now, throttle }: 
   app.post("/api/accounts", { config: { access: "admin" } }, async (request, reply) => {
     const created = await createAccount(db, request.body, now());
     if ("status" in created) return send(reply, created);
+    const by = signedInAs(request).account.username;
+    audit({ event: "accountCreated", username: created.username, role: created.role, by, ip: request.ip });
     return reply.code(201).send(created);
   });
 
@@ -158,8 +171,10 @@ export function registerAuthRoutes(app: FastifyInstance, { db, now, throttle }: 
     const { id } = request.params;
     const notFound = refuse(404, "accountNotFound", `There is no Account ${id}.`);
     if (!/^\d{1,15}$/.test(id)) return send(reply, notFound);
-    switch (deleteAccount(db, accountId(Number(id)))) {
+    const deleting = accountId(Number(id));
+    switch (deleteAccount(db, deleting)) {
       case "deleted":
+        audit({ event: "accountDeleted", accountId: deleting, by: signedInAs(request).account.username, ip: request.ip });
         return reply.code(204).send();
       case "admin":
         return send(reply, refuse(403, "cannotDeleteAdmin", "An Admin cannot be deleted."));

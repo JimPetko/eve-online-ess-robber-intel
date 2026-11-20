@@ -5,6 +5,7 @@ import fastifyStatic from "@fastify/static";
 import Fastify, { type FastifyInstance } from "fastify";
 import { regionId, type RegionList } from "../domain/index.ts";
 import { enforceAccess } from "./auth/access.ts";
+import { auditLog } from "./auth/audit.ts";
 import { registerAuthRoutes } from "./auth/routes.ts";
 import { createSignInThrottle } from "./auth/throttle.ts";
 import { regionView } from "./region-view.ts";
@@ -25,6 +26,8 @@ export interface AppDeps {
   readonly now?: () => Date;
   /** Where a 5xx's error goes, since its response says only that something went wrong. */
   readonly logError?: (line: string, error: unknown) => void;
+  /** Where each security event goes: one `audit {json}` line per sign-in, password change, Account change or refused origin. */
+  readonly logAudit?: (line: string) => void;
 }
 
 export function buildApp({
@@ -34,7 +37,9 @@ export function buildApp({
   trustProxy = false,
   now = () => new Date(),
   logError = console.error,
+  logAudit = console.log,
 }: AppDeps): FastifyInstance {
+  const audit = auditLog(logAudit, now);
   // Trusts the immediate peer and nothing past it. Fastify reads a hop count (`trustProxy: 1`) as trust-nothing.
   const app = Fastify({ logger: false, trustProxy: trustProxy && ((_address: string, hop: number) => hop === 0) });
   addSecurityHeaders(app);
@@ -51,7 +56,7 @@ export function buildApp({
 
   app.get("/api/health", { config: { access: "public" } }, () => ({ ok: true }));
 
-  registerAuthRoutes(app, { db, now, throttle: createSignInThrottle(now) });
+  registerAuthRoutes(app, { db, now, throttle: createSignInThrottle(now), audit });
 
   app.get("/api/regions", { config: { access: "active" } }, (): RegionList => ({ regions: listNullsecRegions(db) }));
 

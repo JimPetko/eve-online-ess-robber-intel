@@ -23,7 +23,8 @@ function setup(options: { trustProxy?: boolean } = {}) {
   const db = openDb(":memory:");
   const admin = addAccount(db, "Admin", "admin");
   let now = T0;
-  const app = buildApp({ db, nextPullAt: () => null, now: () => now, ...options });
+  const auditLines: string[] = [];
+  const app = buildApp({ db, nextPullAt: () => null, now: () => now, logAudit: (line) => auditLines.push(line), ...options });
   apps.push(app);
   const call = (method: "GET" | "POST" | "DELETE", url: string, cookie?: string, payload?: unknown) =>
     app.inject({
@@ -41,6 +42,9 @@ function setup(options: { trustProxy?: boolean } = {}) {
       now = new Date(now.getTime() + ms);
     },
     session: async (cookie?: string) => (await call("GET", "/api/session", cookie)).json<SessionView>(),
+    auditLines,
+    /** The audit lines written since the last call, each parsed from its `audit {json}` form. */
+    audited: () => auditLines.splice(0).map((line) => JSON.parse(line.replace(/^audit /, "")) as unknown),
   };
 }
 
@@ -515,4 +519,46 @@ test("50 wrong current passwords sent at once get 10 401s and 40 429s", async ()
   const cookie = await signIn(app, "Admin");
   const attempts = Array.from({ length: 50 }, () => call("POST", "/api/session/password", cookie, wrongCurrentPassword));
   expect(await statusCounts(attempts)).toEqual({ 401: 10, 429: 40 });
+});
+
+test("a failed sign-in is audited with the username and IP, and never the password", async () => {
+  const { app, audited, auditLines } = setup();
+  await app.inject({ method: "POST", url: "/api/session", remoteAddress: "203.0.113.7", payload: { username: "admin", password: "hunter2 guess" } });
+
+  expect(auditLines.join("\n")).not.toContain("hunter2");
+  expect(audited()).toEqual([{ at: T0.toISOString(), event: "signInFailed", username: "admin", ip: "203.0.113.7" }]);
+});
+
+test("sign-ins, throttled sign-ins and password changes are audited", async () => {
+  const { app, call, audited } = setup();
+  const cookie = await signIn(app, "admin");
+  expect(audited()).toEqual([{ at: T0.toISOString(), event: "signInSucceeded", username: "Admin", ip: "127.0.0.1" }]);
+
+  await call("POST", "/api/session/password", cookie, { currentPassword: PASSWORD, newPassword: NEW_PASSWORD });
+  expect(audited()).toEqual([{ at: T0.toISOString(), event: "passwordChanged", username: "Admin", ip: "127.0.0.1" }]);
+
+  for (let i = 0; i < 11; i++) await call("POST", "/api/session", undefined, { username: "Admin", password: "not the password" });
+  expect(audited().slice(-2)).toEqual([
+    { at: T0.toISOString(), event: "signInFailed", username: "Admin", ip: "127.0.0.1" },
+    { at: T0.toISOString(), event: "signInThrottled", username: "Admin", ip: "127.0.0.1" },
+  ]);
+});
+
+test("creating and deleting an Account are audited with the Admin who did it", async () => {
+  const { app, call, audited } = setup();
+  const admin = await signIn(app, "Admin");
+  const created = await call("POST", "/api/accounts", admin, { username: "New Robber", password: "temp-pass", role: "robber" });
+  const { id } = created.json<AccountView>();
+  await call("DELETE", `/api/accounts/${String(id)}`, admin);
+
+  expect(audited().slice(1)).toEqual([
+    { at: T0.toISOString(), event: "accountCreated", username: "New Robber", role: "robber", by: "Admin", ip: "127.0.0.1" },
+    { at: T0.toISOString(), event: "accountDeleted", accountId: id, by: "Admin", ip: "127.0.0.1" },
+  ]);
+});
+
+test("a huge sign-in username is audited cut short", async () => {
+  const { call, audited } = setup();
+  await call("POST", "/api/session", undefined, { username: "x".repeat(100_000), password: "whatever" });
+  expect(audited()).toEqual([expect.objectContaining({ event: "signInFailed", username: "x".repeat(200) })]);
 });
