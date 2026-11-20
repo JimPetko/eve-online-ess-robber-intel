@@ -32,38 +32,40 @@ if [ "$ALLOW_ANY_BRANCH" -eq 0 ]; then
 fi
 COMMIT="$(git rev-parse --short HEAD)"
 
-# One SSH connection for every step, so a password is asked for at most once.
-CONTROL="$(mktemp -u "${TMPDIR:-/tmp}/ess-deploy.XXXXXX")"
-SSH=(ssh -o ControlMaster=auto -o ControlPath="$CONTROL" -o ControlPersist=120)
-trap '"${SSH[@]}" -O exit "$HOST" 2>/dev/null || true' EXIT
-
 echo "deploy: shipping $COMMIT to $HOST:$DIR"
 # Extract into a fresh folder and swap it in, so files deleted from the repo do not linger.
-git archive --format=tar HEAD | "${SSH[@]}" "$HOST" "set -e
+git archive --format=tar HEAD | ssh "$HOST" "set -e
   rm -rf $DIR.new && mkdir -p $DIR.new && tar -x -C $DIR.new
   echo $COMMIT > $DIR.new/DEPLOYED_COMMIT
   rm -rf $DIR.old; if [ -d $DIR ]; then mv $DIR $DIR.old; fi
   mv $DIR.new $DIR && rm -rf $DIR.old"
 
-COMPOSE="cd $DIR/ops/home-server && docker compose"
-"${SSH[@]}" "$HOST" "$COMPOSE build --pull"
-
 if [ -n "$SEED_DB" ]; then
-  echo "deploy: seeding the database from $SEED_DB (skipped if the volume already has one)"
-  "${SSH[@]}" "$HOST" "$COMPOSE stop server >/dev/null 2>&1 || true"
-  "${SSH[@]}" "$HOST" "$COMPOSE run --rm --no-deps -T --entrypoint sh server -c \
-    'if [ -e \"\$DB_PATH\" ]; then echo \"volume already has a database; not seeding\"; cat >/dev/null; else cat > \"\$DB_PATH\"; fi'" < "$SEED_DB"
+  echo "deploy: uploading $SEED_DB"
+  ssh "$HOST" "cat > $DIR/seed.sqlite" < "$SEED_DB"
 fi
 
-"${SSH[@]}" "$HOST" "$COMPOSE up -d --remove-orphans"
-
-echo "deploy: waiting for the health check"
-for _ in $(seq 1 30); do
-  if "${SSH[@]}" "$HOST" "curl -fsS http://127.0.0.1:\${ESS_PORT:-3917}/api/health" >/dev/null 2>&1; then
+# Build, seed, start and health-check in one session.
+ssh "$HOST" "bash -s" <<EOF
+set -euo pipefail
+cd $DIR/ops/home-server
+docker compose build --pull
+if [ -f ../../seed.sqlite ]; then
+  docker compose stop server >/dev/null 2>&1 || true
+  docker compose run --rm --no-deps -T --entrypoint sh server -c \
+    'if [ -e "\$DB_PATH" ]; then echo "deploy: volume already has a database; not seeding"; cat >/dev/null; else cat > "\$DB_PATH" && echo "deploy: seeded the database"; fi' \
+    < ../../seed.sqlite
+  rm ../../seed.sqlite
+fi
+docker compose up -d --remove-orphans
+for _ in \$(seq 1 30); do
+  if docker compose exec -T server node -e "fetch('http://127.0.0.1:3917/api/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"; then
     echo "deploy: $COMMIT is up on $HOST"
     exit 0
   fi
   sleep 2
 done
-"${SSH[@]}" "$HOST" "$COMPOSE logs --tail 40 server" || true
-die "server did not answer /api/health within 60 s"
+docker compose logs --tail 40 server
+echo "deploy: server did not answer /api/health within 60 s" >&2
+exit 1
+EOF
