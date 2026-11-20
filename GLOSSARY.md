@@ -8,6 +8,14 @@ Intel for players who rob Encounter Surveillance Systems: which systems in a reg
 A player who breaks into an ESS to steal its banked ISK. The only audience of this tool.
 _Avoid_: User (too generic), thief, hacker
 
+**Account**:
+A sign-in for this tool: a username and a hashed password. Every Account starts with a temporary password and must replace it at first sign-in.
+_Avoid_: User, login (as a noun)
+
+**Admin**:
+An Account that can create Accounts and delete Robber Accounts. No Account can delete an Admin, so an Admin cannot delete itself or another Admin.
+_Avoid_: Superuser, root
+
 **Ratter**:
 A player killing NPCs for bounties in a nullsec System; the source of everything an ESS holds.
 _Avoid_: Farmer, PvE pilot

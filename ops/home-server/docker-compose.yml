@@ -10,6 +10,8 @@ services:
       - "${ESS_PORT:-3917}:3917"
     environment:
       TZ: UTC
+      # Set TRUST_PROXY=1 in .env only when an HTTPS reverse proxy is the sole way in (see README).
+      TRUST_PROXY: ${TRUST_PROXY:-}
     volumes:
       - ess-data:/data
     # main.ts waits up to 10 s for a sync in progress.

@@ -62,6 +62,14 @@ All figures below are Bounty Assumptions in one config file.
 - Ratting Activity (added 2026-11-19) ranks each System within its Region by NPC kills over all stored history. The server ranks it, since a rank needs the whole Region. It replaced the Reserve Bank Estimate as the long-run signal.
 - The provisional Reserve Bank Estimate shipped in v1 and was cut on 2026-11-19. A reserve key pays out on a fixed curve whatever the balance, and balances dwarf what a key drains, so the figure changed no decision. See [research](research/reserve-bank.md#decision-2026-11-19-cut-the-reserve-bank-estimate).
 
+## Accounts (added for public hosting)
+
+- Sign-in with Accounts stored in SQLite: scrypt password hashes, and sessions as SHA-256 hashes of a random cookie token (HttpOnly, SameSite=Strict, Secure over HTTPS, 30-day expiry).
+- One access table gates every route: `public`, `signedIn` (still allowed to change the password), `active`, or `admin`. The client reads one `SessionView` union (`signedOut | mustChangePassword | active`), not a pair of flags.
+- A new Account's password is temporary. The first Admin is created by a CLI that reads the password from stdin, so no credential is in the repo.
+- Admins create Accounts and delete Robber Accounts. Admins cannot be deleted through the app.
+- Failed sign-ins are throttled per username and per IP in memory, so a restart clears the counts.
+
 ## Deferred (v2+)
 
 - Optional EVE SSO: calibrate Bounty Assumptions from a Ratter's wallet journal; client actions (Show Info, Set Destination).

@@ -41,6 +41,22 @@ The server reads these environment variables:
 | `PORT` | `3000` | Port to listen on. `npm run dev` also points the Vite proxy at it. |
 | `HOST` | `127.0.0.1` | Address to bind. |
 | `DB_PATH` | `data/ess-robber-intel.sqlite` | SQLite file. The server creates its folder. |
+| `TRUST_PROXY` | unset | Set to `1` when one HTTPS reverse proxy sits directly in front. The server then trusts only the last `X-Forwarded-For` and `X-Forwarded-Proto` entry, the one that proxy appended: the sign-in throttle counts that client IP, and the session cookie is marked `Secure`. A chain of proxies is not supported. |
+
+## Accounts
+
+Every page and API route except `/api/health` and sign-in needs a signed-in Account. Passwords are stored as scrypt hashes and session tokens as SHA-256 hashes, so a copy of the database yields neither.
+
+Create the first Admin on the server. The command reads the password from stdin, so it never appears in the repo or the shell history:
+
+```sh
+echo 'temporary-password' | npm run accounts:create-admin -- "Frank Wiggles"
+# Docker: docker compose exec -T server node dist/server/accounts-cli.js create-admin "Frank Wiggles"
+```
+
+Every Account, the first Admin included, must replace its password at first sign-in. After that an Admin opens **Accounts** to create Accounts with a temporary password, and to delete Robber Accounts. No one can delete an Admin. Deleting an Account signs it out at once.
+
+Serve it over HTTPS before publishing it: over plain HTTP, passwords and session cookies cross the network readable.
 
 ## What to expect on first run
 
@@ -53,11 +69,16 @@ A kills poll runs when ESI's cached hour expires, not on the clock hour. The uni
 
 ## API
 
-All responses are JSON. The types are in `src/domain/region-view.ts`.
+All responses are JSON. The types are in `src/domain/region-view.ts` and `src/domain/accounts.ts`. Every route except `/api/health` and the session routes needs a signed-in Account whose password has been changed; otherwise it answers 401 `signInRequired` or 403 `passwordChangeRequired`.
 
 | Endpoint | Returns |
 |---|---|
-| `GET /api/health` | `{ "ok": true }` |
+| `GET /api/health` | `{ "ok": true }`. Needs no Account. |
+| `GET /api/session` | The caller's session: `signedOut`, `mustChangePassword` or `active`, with the Account. |
+| `POST /api/session` | Sign in with `{ username, password }`. Sets the session cookie. Too many failures answer 429. |
+| `DELETE /api/session` | Sign out. |
+| `POST /api/session/password` | Replace the password with `{ currentPassword, newPassword }`; signs out every other session. |
+| `GET`, `POST /api/accounts`, `DELETE /api/accounts/:id` | Admins only: list, create (with a temporary password) and delete Accounts. Deleting an Admin answers 403. |
 | `GET /api/regions` | Regions with at least one sov-held nullsec System, by name. |
 | `GET /api/regions/:id` | One Region: sync status, Constellations, and per System the Main Bank Ceiling, previous ceiling, Robber Take and Ratting Activity (rank in the Region by NPC kills over the stored history). An id that is not a whole number returns 400. An unknown Region, or one without sov-held nullsec, returns 404. |
 

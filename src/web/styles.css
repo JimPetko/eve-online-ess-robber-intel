@@ -85,6 +85,47 @@ tr.surging { box-shadow: inset 3px 0 var(--surge); }
 .context-menu a { display: block; padding: 6px 12px; color: var(--text); text-decoration: none; }
 .context-menu a:hover, .context-menu a:focus { background: var(--accent); color: #111; }
 
+button { cursor: pointer; }
+button:disabled { cursor: default; opacity: 0.6; }
+button:where(:not(.sort, .disclosure, .segmented button)) {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 4px 12px;
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: #111; font-weight: 600; }
+button.danger { border-color: var(--stale); color: var(--stale); }
+input:not([type="number"], [type="checkbox"]) {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; color: var(--text);
+  width: 100%;
+}
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.session-bar {
+  max-width: 1100px; margin: 0 auto; padding: 8px 16px 0;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 12px;
+}
+.auth { max-width: 380px; margin: 0 auto; padding: 48px 16px; }
+.auth h1 { margin-bottom: 16px; }
+.card {
+  display: flex; flex-direction: column; gap: 12px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 16px;
+}
+.card h2, .card h3 { cursor: auto; margin: 0; font-size: 18px; }
+.card p { margin: 0; }
+.field { display: flex; flex-direction: column; gap: 4px; color: var(--muted); }
+.field select { align-self: flex-start; }
+.hint { font-size: 12px; }
+.form-error { color: var(--warn); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+table.accounts { width: 100%; border-collapse: collapse; }
+.accounts th, .accounts td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+.accounts thead th { background: var(--panel); font-weight: 600; color: var(--muted); }
+.accounts tbody th { font-weight: 500; }
+.row-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
+.create-account { max-width: 380px; margin-top: 16px; }
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+
 @media (max-width: 640px) {
   .systems th, .systems td { padding: 4px 6px; }
   .col-sec { display: none; }
