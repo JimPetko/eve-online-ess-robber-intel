@@ -6,12 +6,13 @@ services:
     image: ess-robber-intel
     restart: unless-stopped
     ports:
-      # The UI has no login: this publishes it to the LAN. Use "127.0.0.1:3917:3917" to keep it on the host.
-      - "${ESS_PORT:-3917}:3917"
+      # Host-only: Tailscale Funnel on the host is the one way in (see README). Binding beyond
+      # 127.0.0.1 would let a client skip the proxy and forge X-Forwarded-For.
+      - "127.0.0.1:${ESS_PORT:-3917}:3917"
     environment:
       TZ: UTC
-      # Set TRUST_PROXY=1 in .env only when an HTTPS reverse proxy is the sole way in (see README).
-      TRUST_PROXY: ${TRUST_PROXY:-}
+      # Trust the one proxy in front (Funnel) for the client IP and https.
+      TRUST_PROXY: ${TRUST_PROXY:-1}
     volumes:
       - ess-data:/data
     # main.ts waits up to 10 s for a sync in progress.
