@@ -333,3 +333,29 @@ test("serves the built UI, with the app shell for client routes and JSON 404s un
 test("without a built UI only the API is served", async () => {
   expect((await get(app(), "/")).statusCode).toBe(404);
 });
+
+test("an internal failure answers a 500 that names nothing internal, and logs the error", async () => {
+  const db = seed();
+  const logged: unknown[][] = [];
+  const instance = buildApp({ db, nextPullAt: () => NEXT_PULL, logError: (...args) => logged.push(args) });
+  apps.push(instance);
+  const cookie = await signIn(instance, ROBBER);
+  db.close();
+
+  const res = await instance.inject({ method: "GET", url: "/api/regions", headers: { cookie } });
+  expect([res.statusCode, res.json()]).toEqual([500, { error: "internal", message: "Something went wrong." }]);
+  expect(res.body).not.toMatch(/database/i);
+  expect(logged).toEqual([["GET /api/regions failed:", expect.objectContaining({ message: expect.stringMatching(/database/i) as unknown })]]);
+});
+
+test.each([
+  ["malformed JSON", "application/json", "{", 400],
+  ["an unsupported content type", "application/xml", "<a/>", 415],
+])("a request with %s keeps its 4xx status and answers a JSON error", async (_, contentType, payload, status) => {
+  const logged: unknown[][] = [];
+  const instance = buildApp({ db: seed(), nextPullAt: () => NEXT_PULL, logError: (...args) => logged.push(args) });
+  apps.push(instance);
+  const res = await instance.inject({ method: "POST", url: "/api/session", headers: { "content-type": contentType }, payload });
+  expect([res.statusCode, res.json()]).toEqual([status, { error: "invalidRequest", message: expect.any(String) as unknown }]);
+  expect(logged).toEqual([]);
+});

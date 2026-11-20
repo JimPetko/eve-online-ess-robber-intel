@@ -22,12 +22,30 @@ export interface AppDeps {
    */
   readonly trustProxy?: boolean;
   readonly now?: () => Date;
+  /** Where a 5xx's error goes, since its response says only that something went wrong. */
+  readonly logError?: (line: string, error: unknown) => void;
 }
 
-export function buildApp({ db, nextPullAt, webRoot, trustProxy = false, now = () => new Date() }: AppDeps): FastifyInstance {
+export function buildApp({
+  db,
+  nextPullAt,
+  webRoot,
+  trustProxy = false,
+  now = () => new Date(),
+  logError = console.error,
+}: AppDeps): FastifyInstance {
   // Trusts the immediate peer and nothing past it. Fastify reads a hop count (`trustProxy: 1`) as trust-nothing.
   const app = Fastify({ logger: false, trustProxy: trustProxy && ((_address: string, hop: number) => hop === 0) });
   enforceAccess(app, db, now);
+
+  // Fastify's own 4xx (bad JSON, unsupported content type) describe the request; anything else may describe the server.
+  app.setErrorHandler((error, request, reply) => {
+    if (error instanceof Error && "statusCode" in error && typeof error.statusCode === "number" && error.statusCode < 500) {
+      return reply.code(error.statusCode).send({ error: "invalidRequest", message: error.message });
+    }
+    logError(`${request.method} ${request.url} failed:`, error);
+    return reply.code(500).send({ error: "internal", message: "Something went wrong." });
+  });
 
   app.get("/api/health", { config: { access: "public" } }, () => ({ ok: true }));
 
