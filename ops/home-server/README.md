@@ -21,7 +21,7 @@ It asks for the SSH password up to three times. Set up key auth (`ssh-copy-id`) 
 
 | Option | Use |
 |---|---|
-| `--dir DIR` | Install folder on the host (default `~/ess-robber-intel`) |
+| `--dir DIR` | Install folder on the host (default `~/ess-robber-intel`). Quote a `~` path (`--dir '~/foo'`) so the host expands it, not your shell. |
 | `--seed-db FILE` | Load history into an empty volume. It is ignored once the volume has a database. |
 | `--allow-any-branch` | Deploy a branch or a dirty checkout |
 

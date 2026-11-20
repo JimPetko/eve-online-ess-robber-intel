@@ -34,9 +34,11 @@ COMMIT="$(git rev-parse --short HEAD)"
 
 echo "deploy: shipping $COMMIT to $HOST:$DIR"
 # Extract into a fresh folder and swap it in, so files deleted from the repo do not linger.
+# The host's ops/home-server/.env is not in git, so carry it across.
 git archive --format=tar HEAD | ssh "$HOST" "set -e
   rm -rf $DIR.new && mkdir -p $DIR.new && tar -x -C $DIR.new
   echo $COMMIT > $DIR.new/DEPLOYED_COMMIT
+  if [ -f $DIR/ops/home-server/.env ]; then cp -p $DIR/ops/home-server/.env $DIR.new/ops/home-server/.env; fi
   rm -rf $DIR.old; if [ -d $DIR ]; then mv $DIR $DIR.old; fi
   mv $DIR.new $DIR && rm -rf $DIR.old"
 
