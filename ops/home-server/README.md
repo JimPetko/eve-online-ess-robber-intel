@@ -35,6 +35,24 @@ node -e 'require("node:sqlite").backup(new (require("node:sqlite").DatabaseSync)
 ops/home-server/deploy.sh jpetko@192.168.0.187 --seed-db seed.sqlite
 ```
 
+## First Admin
+
+Every page needs a signed-in Account. Create the first Admin once, on the host, after the first deploy. The password is read from stdin, so it is not in the repo, the image or the shell history (the leading space keeps it out of bash history):
+
+```sh
+cd ~/ess-robber-intel/ops/home-server
+ echo 'temporary-password' | docker compose exec -T server node dist/server/accounts-cli.js create-admin "Frank Wiggles"
+```
+
+The Admin must choose a new password at first sign-in, then creates the other Accounts under **Accounts**.
+
+## Going public
+
+Put an HTTPS reverse proxy (Caddy, nginx, Traefik) in front before exposing the page beyond the LAN. Over plain HTTP, passwords and session cookies cross the network readable. Then:
+
+1. Set `TRUST_PROXY=1` in `ops/home-server/.env`. The session cookie is marked `Secure`, and the sign-in throttle counts each client's own IP from `X-Forwarded-For` instead of the proxy's one IP. Without it, ten failed sign-ins from anyone lock everyone out for 15 minutes.
+2. Make the proxy the only way in. Change the port mapping to `127.0.0.1:3917:3917` (or put the proxy on the Compose network) and do not forward 3917 on the router. With `TRUST_PROXY=1`, a client that reaches the port directly can forge `X-Forwarded-For`.
+
 ## On the host
 
 ```sh
