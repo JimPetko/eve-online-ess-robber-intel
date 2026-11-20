@@ -1,3 +1,5 @@
+name: ess-robber-intel
+
 services:
   server:
     build: ../..
