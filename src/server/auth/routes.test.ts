@@ -434,3 +434,53 @@ test("failures behind a trusted proxy count against the forwarded client IP", as
   expect((await attempt("203.0.113.7", { username: "Admin", password: PASSWORD })).statusCode).toBe(429);
   expect((await attempt("198.51.100.2", { username: "Admin", password: PASSWORD })).statusCode).toBe(200);
 });
+
+const wrongCurrentPassword = { currentPassword: "not my password", newPassword: NEW_PASSWORD };
+const rightCurrentPassword = { currentPassword: PASSWORD, newPassword: NEW_PASSWORD };
+
+test("after 10 wrong current passwords, even the right one gets 429 until 15 minutes pass", async () => {
+  const { app, call, advance } = setup();
+  const cookie = await signIn(app, "Admin");
+  for (let i = 0; i < 10; i++) {
+    const res = await call("POST", "/api/session/password", cookie, wrongCurrentPassword);
+    expect([i, res.statusCode]).toEqual([i, 401]);
+    advance(1000);
+  }
+
+  const blocked = await call("POST", "/api/session/password", cookie, rightCurrentPassword);
+  expect([blocked.statusCode, blocked.json(), blocked.headers["retry-after"]]).toEqual([
+    429,
+    authError("tooManyAttempts"),
+    String(15 * 60 - 10),
+  ]);
+
+  advance((15 * 60 - 10) * 1000);
+  expect((await call("POST", "/api/session/password", cookie, rightCurrentPassword)).statusCode).toBe(200);
+  await signIn(app, "Admin", NEW_PASSWORD);
+});
+
+test("wrong current passwords count against the Account's username, so they also block its sign-in from another IP", async () => {
+  const { app, call } = setup();
+  const cookie = await signIn(app, "Admin");
+  for (let i = 0; i < 10; i++) await call("POST", "/api/session/password", cookie, wrongCurrentPassword);
+
+  const signInElsewhere = await app.inject({
+    method: "POST",
+    url: "/api/session",
+    remoteAddress: "198.51.100.2",
+    payload: { username: "admin", password: PASSWORD },
+  });
+  expect([signInElsewhere.statusCode, signInElsewhere.json()]).toEqual([429, authError("tooManyAttempts")]);
+});
+
+test("a successful password change clears the username's failures", async () => {
+  const { app, call } = setup();
+  const cookie = await signIn(app, "Admin");
+  for (let i = 0; i < 9; i++) await call("POST", "/api/session/password", cookie, wrongCurrentPassword);
+  expect((await call("POST", "/api/session/password", cookie, rightCurrentPassword)).statusCode).toBe(200);
+
+  const attempt = (password: string) =>
+    app.inject({ method: "POST", url: "/api/session", remoteAddress: "198.51.100.2", payload: { username: "Admin", password } });
+  for (let i = 0; i < 9; i++) expect((await attempt("not the password")).statusCode).toBe(401);
+  expect((await attempt(NEW_PASSWORD)).statusCode).toBe(200);
+});
