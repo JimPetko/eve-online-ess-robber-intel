@@ -1,7 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { fixtureApi, httpApi } from "./api.ts";
-import { App } from "./App.tsx";
+import { AuthGate } from "./AuthGate.tsx";
 import { FIXTURE_SYNCS, type FixtureSync } from "./fixtures/region-view.ts";
 import "./styles.css";
 
@@ -17,6 +17,6 @@ const api =
 
 createRoot(root).render(
   <StrictMode>
-    <App api={api} />
+    <AuthGate api={api} />
   </StrictMode>,
 );
