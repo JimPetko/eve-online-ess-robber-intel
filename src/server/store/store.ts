@@ -123,6 +123,17 @@ export function listNullsecSystems(db: DatabaseSync, regionId?: RegionId): Nulls
   }));
 }
 
+/**
+ * Why no System is in scope: nothing stored yet, no sovereignty refresh has succeeded yet
+ * (sov_kind is still NULL everywhere), or the sovereignty map holds no sov-held nullsec.
+ */
+export function emptyScopeReason(db: DatabaseSync): string {
+  const row = db.prepare("SELECT COUNT(*) AS n, COUNT(sov_kind) AS withSov FROM systems").get();
+  if (row === undefined || num(row, "n") === 0) return "no Systems stored; the universe sync has not run";
+  if (num(row, "withSov") === 0) return "no sovereignty map stored; the sovereignty refresh has not succeeded yet";
+  return "the sovereignty map shows no sov-held nullsec Systems";
+}
+
 /** Regions holding at least one in-scope System, by name. */
 export function listNullsecRegions(db: DatabaseSync): RegionSummary[] {
   return db

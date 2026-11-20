@@ -177,7 +177,41 @@ test("without Last-Modified or Expires the poll fails rather than guess the hour
 test("fails without calling ESI before the universe sync has stored any Systems", async () => {
   const db = openDb(":memory:");
   const result = await pollKills({ esi: fakeEsi(), db });
-  expect(result).toMatchObject({ ok: false, error: expect.stringMatching(/universe sync/) as unknown });
+  expect(result).toMatchObject({ ok: false, error: expect.stringMatching(/universe sync has not run/) as unknown });
+});
+
+test("names the missing sovereignty map, not the universe sync, when only sovereignty has not loaded", async () => {
+  const db = openDb(":memory:");
+  upsertRegionTree(db, {
+    id: regionId(10000001),
+    name: "Derelik",
+    constellations: [
+      {
+        id: constellationId(20000001),
+        name: "Kalevala",
+        systems: [{ id: systemId(30000002), name: "Quiet", securityStatus: -0.2 }],
+      },
+    ],
+  });
+  const result = await pollKills({ esi: fakeEsi(), db });
+  expect(result).toEqual({
+    ok: false,
+    error: "no sov-held nullsec Systems in scope: no sovereignty map stored; the sovereignty refresh has not succeeded yet",
+  });
+  expect(latestSyncRun(db, "kills")).toMatchObject({
+    ok: false,
+    error: expect.stringMatching(/sovereignty refresh/) as unknown,
+  });
+});
+
+test("says the sovereignty map holds no sov-held nullsec when every System is NPC or unclaimed", async () => {
+  const db = seed();
+  replaceSovereignty(db, [{ systemId: systemId(30000002), allianceId: null, factionId: 500001 as FactionId }]);
+  const result = await pollKills({ esi: fakeEsi(), db });
+  expect(result).toEqual({
+    ok: false,
+    error: "no sov-held nullsec Systems in scope: the sovereignty map shows no sov-held nullsec Systems",
+  });
 });
 
 test("prunes snapshots older than 30 days", async () => {

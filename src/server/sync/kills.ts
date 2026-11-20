@@ -2,6 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import type { SystemId } from "../../domain/index.ts";
 import type { Esi } from "../esi/client.ts";
 import {
+  emptyScopeReason,
   finishSyncRun,
   listNullsecSystems,
   pruneKillSnapshots,
@@ -46,7 +47,7 @@ export async function pollKills({
   const runId = startSyncRun(db, "kills", now());
   try {
     const systems = listNullsecSystems(db);
-    if (systems.length === 0) throw new Error("no nullsec Systems stored; the universe sync has not run");
+    if (systems.length === 0) throw new Error(`no sov-held nullsec Systems in scope: ${emptyScopeReason(db)}`);
 
     const response = await esi.systemKills();
     const pulledAt =
