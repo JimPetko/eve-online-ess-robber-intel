@@ -68,6 +68,7 @@ function system(
   securityStatus: number,
   mainBank: MainBankCeiling,
   previousMainBank: MainBankCeiling | null,
+  npcKills30d: number,
 ): SystemView {
   return {
     id: systemId(id),
@@ -77,14 +78,30 @@ function system(
     mainBank,
     previousMainBank,
     robberTake: robberTake(mainBank.ceiling),
+    // Ranks are filled in by fixtureRegionView once every System is known.
+    rattingActivity: { npcKills: npcKills30d, rank: 0, of: 0, hoursCovered: 720 },
   };
+}
+
+/** Ranks like the server: busiest first, equal kills share a rank. */
+function ranked(systems: SystemView[]): SystemView[] {
+  const descending = systems.map((s) => s.rattingActivity.npcKills).sort((a, b) => b - a);
+  return systems.map((s) => ({
+    ...s,
+    rattingActivity: {
+      ...s.rattingActivity,
+      rank: descending.indexOf(s.rattingActivity.npcKills) + 1,
+      of: systems.length,
+    },
+  }));
 }
 
 /**
  * Delve with every signal the UI shows: Surges at the default 20M threshold
  * (8QT-H4 +40M, 1DQ1-A +32M, PUIG-F +28M), a smaller rise that is a Surge
  * only at lower thresholds (J5A-IX +13M), a drop (T5ZI-S) and a Warming Up
- * System (5BTK-M).
+ * System (5BTK-M). Ratting Activity is over 30 days, so it ranks differently:
+ * Y-OMTZ is the habitual hub though 8QT-H4 holds more now, and NOL-M9 is idle.
  */
 export function fixtureRegionView(now: Date, sync: FixtureSync = "recent"): RegionView {
   return {
@@ -95,12 +112,12 @@ export function fixtureRegionView(now: Date, sync: FixtureSync = "recent"): Regi
       { id: ONE_P_VL2, name: "1P-VL2" },
       { id: QKQ, name: "QKQ-BT" },
     ],
-    systems: [
-      system(30004759, "1DQ1-A", O_EIMK, -0.39, ready(412), ready(380)),
-      system(30004760, "T5ZI-S", O_EIMK, -0.38, ready(156), ready(190)),
-      system(30004761, "PUIG-F", O_EIMK, -0.42, ready(98), ready(70)),
-      system(30004762, "NOL-M9", O_EIMK, -0.33, ready(0), ready(0)),
-      system(30004740, "8QT-H4", ONE_P_VL2, -0.47, ready(1230), ready(1190)),
+    systems: ranked([
+      system(30004759, "1DQ1-A", O_EIMK, -0.39, ready(412), ready(380), 41_000),
+      system(30004760, "T5ZI-S", O_EIMK, -0.38, ready(156), ready(190), 22_500),
+      system(30004761, "PUIG-F", O_EIMK, -0.42, ready(98), ready(70), 9_800),
+      system(30004762, "NOL-M9", O_EIMK, -0.33, ready(0), ready(0), 0),
+      system(30004740, "8QT-H4", ONE_P_VL2, -0.47, ready(1230), ready(1190), 52_000),
       system(
         30004741,
         "5BTK-M",
@@ -108,12 +125,13 @@ export function fixtureRegionView(now: Date, sync: FixtureSync = "recent"): Regi
         -0.51,
         { status: "warmingUp", ceiling: isk(45 * M), hoursCovered: 1, hoursNeeded: 3 },
         null,
+        1_200,
       ),
-      system(30004742, "Y-OMTZ", ONE_P_VL2, -0.55, ready(640), ready(640)),
-      system(30004780, "J5A-IX", QKQ, -0.72, ready(233), ready(220)),
-      system(30004781, "MO-GZ5", QKQ, -0.61, ready(187.5), ready(180)),
-      system(30004782, "QY6-RK", QKQ, -0.29, ready(61.2), null),
-    ],
+      system(30004742, "Y-OMTZ", ONE_P_VL2, -0.55, ready(640), ready(640), 68_000),
+      system(30004780, "J5A-IX", QKQ, -0.72, ready(233), ready(220), 22_500),
+      system(30004781, "MO-GZ5", QKQ, -0.61, ready(187.5), ready(180), 15_000),
+      system(30004782, "QY6-RK", QKQ, -0.29, ready(61.2), null, 3_100),
+    ]),
   };
 }
 

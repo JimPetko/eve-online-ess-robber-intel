@@ -57,6 +57,23 @@ test("column headers sort, and a second click reverses", async () => {
   expect(rowLabels()).toEqual(BY_CEILING.toReversed());
 });
 
+test("Ratting Activity shows each System's rank in the Region over the history held", async () => {
+  const user = await renderApp();
+  expect(within(rowOf("Y-OMTZ")).getByText("#1 of 10")).toBeTruthy();
+  expect(within(rowOf("8QT-H4")).getByText("#2 of 10")).toBeTruthy();
+  // Equal kills share a rank.
+  expect(within(rowOf("T5ZI-S")).getByText("#4 of 10")).toBeTruthy();
+  expect(within(rowOf("J5A-IX")).getByText("#4 of 10")).toBeTruthy();
+  expect(within(rowOf("MO-GZ5")).getByText("#6 of 10")).toBeTruthy();
+  expect(within(rowOf("NOL-M9")).getByText("—")).toBeTruthy();
+  expect(within(rowOf("Y-OMTZ")).getByTitle("68,000 NPC kills over 720h of history; rank 1 of 10 in the Region")).toBeTruthy();
+
+  await user.click(screen.getByRole("button", { name: /^Ratting Activity/ }));
+  expect(rowLabels()).toEqual([
+    "Y-OMTZ", "8QT-H4", "1DQ1-A", "J5A-IX", "T5ZI-S", "MO-GZ5", "PUIG-F", "QY6-RK", "5BTK-M", "NOL-M9",
+  ]);
+});
+
 test("Grouped view ranks Constellations by summed ceiling, Systems within, and collapses", async () => {
   const user = await renderApp();
   await user.click(screen.getByRole("button", { name: "Grouped" }));

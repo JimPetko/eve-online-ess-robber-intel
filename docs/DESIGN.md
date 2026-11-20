@@ -47,7 +47,7 @@ All figures below are Bounty Assumptions in one config file.
 - Two views, toggled:
   - **Flat** (default): every System in the Region ranked richest first.
   - **Grouped**: Constellations, each showing the sum of its Systems' ceilings, sorted by that sum; Systems sorted within.
-- Sortable columns: Main Bank Ceiling, Robber Take, name.
+- Sortable columns: Main Bank Ceiling, Robber Take, Ratting Activity, name.
 - **Surge**: a Robber-adjustable Surge Threshold (default 20M ISK). Systems whose ceiling rose by at least the threshold since the previous pull are highlighted with the ISK delta, and the list can be filtered to Surges only. Drops are never highlighted.
 - **Freshness**: "data as of" (ESI Last-Modified) plus time since the last successful pull. Older than 1 hour is Stale. A global banner reports a failed or stopped sync. Warming Up is a separate signal.
 - **Dotlan**: right-click any Region, Constellation or System to open it on evemaps.dotlan.net. Verify the URL shape for each level before building.
@@ -59,6 +59,7 @@ All figures below are Bounty Assumptions in one config file.
 - Constellation totals are computed in the browser with `constellationCeiling`, not sent by the API, so a total cannot disagree with the Systems it sums.
 - Scope is one rule, the `nullsec_systems` view in `src/server/store/db.ts` (true security ≤ 0.0 and `sov_kind = 'sov'`). Region counts, the Region view and the kills poll all read it. NPC and unclaimed Systems stay stored but are never polled, computed or shown.
 - The API contract is the set of types in `src/domain/region-view.ts`, shared by the server and the UI.
+- Ratting Activity (added 2026-11-19) ranks each System within its Region by NPC kills over all stored history. The server ranks it, since a rank needs the whole Region. It replaced the Reserve Bank Estimate as the long-run signal.
 - The provisional Reserve Bank Estimate shipped in v1 and was cut on 2026-11-19. A reserve key pays out on a fixed curve whatever the balance, and balances dwarf what a key drains, so the figure changed no decision. See [research](research/reserve-bank.md#decision-2026-11-19-cut-the-reserve-bank-estimate).
 
 ## Deferred (v2+)

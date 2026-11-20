@@ -59,7 +59,7 @@ All responses are JSON. The types are in `src/domain/region-view.ts`.
 |---|---|
 | `GET /api/health` | `{ "ok": true }` |
 | `GET /api/regions` | Regions with at least one sov-held nullsec System, by name. |
-| `GET /api/regions/:id` | One Region: sync status, Constellations, and per System the Main Bank Ceiling, previous ceiling and Robber Take. An id that is not a whole number returns 400. An unknown Region, or one without sov-held nullsec, returns 404. |
+| `GET /api/regions/:id` | One Region: sync status, Constellations, and per System the Main Bank Ceiling, previous ceiling, Robber Take and Ratting Activity (rank in the Region by NPC kills over the stored history). An id that is not a whole number returns 400. An unknown Region, or one without sov-held nullsec, returns 404. |
 
 ## Bounty Assumptions
 
