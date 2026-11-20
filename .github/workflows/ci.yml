@@ -25,6 +25,18 @@ jobs:
       - name: Build
         run: npm run build
 
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the server image
+        run: docker build -t ess-robber-intel .
+      - name: The image serves /api/health
+        run: |
+          docker run -d --name ess -p 3917:3917 ess-robber-intel
+          for _ in $(seq 1 30); do curl -fsS http://127.0.0.1:3917/api/health && exit 0; sleep 1; done
+          docker logs ess; exit 1
+
   tests-required:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
