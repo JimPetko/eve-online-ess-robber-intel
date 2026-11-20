@@ -41,7 +41,7 @@ The server reads these environment variables:
 | `PORT` | `3000` | Port to listen on. `npm run dev` also points the Vite proxy at it. |
 | `HOST` | `127.0.0.1` | Address to bind. |
 | `DB_PATH` | `data/ess-robber-intel.sqlite` | SQLite file. The server creates its folder. |
-| `TRUST_PROXY` | unset | Set to `1` behind an HTTPS reverse proxy, so the session cookie is marked `Secure` from `X-Forwarded-Proto`. |
+| `TRUST_PROXY` | unset | Set to `1` when one HTTPS reverse proxy sits directly in front. The server then trusts only the last `X-Forwarded-For` and `X-Forwarded-Proto` entry, the one that proxy appended: the sign-in throttle counts that client IP, and the session cookie is marked `Secure`. A chain of proxies is not supported. |
 
 ## Accounts
 

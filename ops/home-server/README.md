@@ -50,7 +50,7 @@ The Admin must choose a new password at first sign-in, then creates the other Ac
 
 Put an HTTPS reverse proxy (Caddy, nginx, Traefik) in front before exposing the page beyond the LAN. Over plain HTTP, passwords and session cookies cross the network readable. Then:
 
-1. Set `TRUST_PROXY=1` in `ops/home-server/.env`. The session cookie is marked `Secure`, and the sign-in throttle counts each client's own IP from `X-Forwarded-For` instead of the proxy's one IP. Without it, ten failed sign-ins from anyone lock everyone out for 15 minutes.
+1. Set `TRUST_PROXY=1` in `ops/home-server/.env`. It assumes one reverse proxy directly in front, with nothing between it and the server. The session cookie is marked `Secure`, and the sign-in throttle counts each client's own IP, the last entry the proxy appended to `X-Forwarded-For`, instead of the proxy's one IP. Without it, ten failed sign-ins from anyone lock everyone out for 15 minutes.
 2. Make the proxy the only way in. Change the port mapping to `127.0.0.1:3917:3917` (or put the proxy on the Compose network) and do not forward 3917 on the router. With `TRUST_PROXY=1`, a client that reaches the port directly can forge `X-Forwarded-For`.
 
 ## On the host

@@ -433,6 +433,19 @@ test("failures behind a trusted proxy count against the forwarded client IP", as
   expect((await attempt("198.51.100.2", { username: "Admin", password: PASSWORD })).statusCode).toBe(200);
 });
 
+test("behind a trusted proxy, only the X-Forwarded-For entry the proxy appended counts, so a client cannot rotate the entries before it", async () => {
+  const { app } = setup({ trustProxy: true });
+  const attempt = (forwardedFor: string, payload: object) =>
+    app.inject({ method: "POST", url: "/api/session", headers: { "x-forwarded-for": forwardedFor }, payload });
+  for (let i = 0; i < 10; i++) {
+    const res = await attempt(`10.0.0.${String(i)}, 203.0.113.7`, wrongPassword(`guess${String(i)}`));
+    expect([i, res.statusCode]).toEqual([i, 401]);
+  }
+
+  expect((await attempt("10.9.9.9, 203.0.113.7", { username: "Admin", password: PASSWORD })).statusCode).toBe(429);
+  expect((await attempt("203.0.113.7, 198.51.100.2", { username: "Admin", password: PASSWORD })).statusCode).toBe(200);
+});
+
 const wrongCurrentPassword = { currentPassword: "not my password", newPassword: NEW_PASSWORD };
 const rightCurrentPassword = { currentPassword: PASSWORD, newPassword: NEW_PASSWORD };
 

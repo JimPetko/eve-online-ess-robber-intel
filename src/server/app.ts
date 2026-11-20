@@ -16,13 +16,17 @@ export interface AppDeps {
   readonly nextPullAt: () => Date | null;
   /** The built web UI (dist/web). Served only if it holds an index.html; in dev Vite serves the UI instead. */
   readonly webRoot?: string;
-  /** Behind a reverse proxy: take the client's IP and protocol from its X-Forwarded-* headers. */
+  /**
+   * Behind one reverse proxy directly in front: take the client's IP and protocol from the entry that
+   * proxy appended to X-Forwarded-*. Entries before it are whatever the client sent, so they are ignored.
+   */
   readonly trustProxy?: boolean;
   readonly now?: () => Date;
 }
 
 export function buildApp({ db, nextPullAt, webRoot, trustProxy = false, now = () => new Date() }: AppDeps): FastifyInstance {
-  const app = Fastify({ logger: false, trustProxy });
+  // Trusts the immediate peer and nothing past it. Fastify reads a hop count (`trustProxy: 1`) as trust-nothing.
+  const app = Fastify({ logger: false, trustProxy: trustProxy && ((_address: string, hop: number) => hop === 0) });
   enforceAccess(app, db, now);
 
   app.get("/api/health", { config: { access: "public" } }, () => ({ ok: true }));
