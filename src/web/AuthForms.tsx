@@ -86,7 +86,7 @@ export function ChangePassword({
     }
     action.run(() => api.changePassword({ currentPassword, newPassword }), onSession);
   };
-  const hint = `At least ${String(PASSWORD_RULE.minLength)} characters.`;
+  const hint = `At least ${String(PASSWORD_RULE.minLength)} characters, without your username.`;
   return (
     <main className="auth">
       <h1>{APP_TITLE}</h1>

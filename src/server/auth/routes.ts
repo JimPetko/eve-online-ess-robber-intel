@@ -21,6 +21,7 @@ import {
 } from "../store/accounts.ts";
 import { refuse, send, sessionView, signedInAs, type Refusal } from "./access.ts";
 import type { Audit } from "./audit.ts";
+import { COMMON_PASSWORDS } from "./common-passwords.ts";
 import type { HashingLimit } from "./hashing-limit.ts";
 import { DUMMY_HASH, hashPassword, verifyPassword } from "./password.ts";
 import { newSessionToken, SESSION_LIFETIME_MS, sessionCookie, tokenHash } from "./session-cookie.ts";
@@ -52,6 +53,18 @@ function parseUsername(value: unknown): string | Refusal {
 function parsePassword(value: unknown, minLength: number): string | Refusal {
   if (typeof value === "string" && value.length >= minLength && value.length <= PASSWORD_RULE.maxLength) return value;
   return refuse(400, "weakPassword", `A password is ${String(minLength)} to ${String(PASSWORD_RULE.maxLength)} characters.`);
+}
+
+/** A password an Account chooses for itself; an Admin's temporary one lasts only until first sign-in, so skips these checks. */
+function parseChosenPassword(value: unknown, username: string): string | Refusal {
+  const password = parsePassword(value, PASSWORD_RULE.minLength);
+  if (typeof password !== "string") return password;
+  const lower = password.toLowerCase();
+  if (lower.includes(username.toLowerCase())) return refuse(400, "weakPassword", "A password must not contain your username.");
+  if (COMMON_PASSWORDS.has(lower)) {
+    return refuse(400, "weakPassword", "That is one of the most common passwords, so it is among the first guessed. Choose another.");
+  }
+  return password;
 }
 
 export async function createAccount(db: DatabaseSync, body: unknown, now: Date): Promise<AccountView | Refusal> {
@@ -150,7 +163,7 @@ export function registerAuthRoutes(app: FastifyInstance, { db, now, throttle, ha
     if (typeof currentPassword !== "string") {
       return send(reply, refuse(400, "invalidCredentials", "Send your current password."));
     }
-    const newPassword = parsePassword(fields.newPassword, PASSWORD_RULE.minLength);
+    const newPassword = parseChosenPassword(fields.newPassword, account.username);
     if (typeof newPassword !== "string") return send(reply, newPassword);
     if (newPassword === currentPassword) {
       return send(reply, refuse(400, "weakPassword", "Choose a password different from your current one."));

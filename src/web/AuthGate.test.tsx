@@ -72,7 +72,7 @@ test("the first sign-in forces a password change, then lands on the intel", asyn
     await screen.findByRole("heading", { name: "Choose a new password" }),
   ).toBeTruthy();
   expect(screen.getByText(/first sign-in for/).textContent).toContain("Ratbag");
-  expect(screen.getByText("At least 12 characters.")).toBeTruthy();
+  expect(screen.getByText("At least 12 characters, without your username.")).toBeTruthy();
   expect(screen.queryByRole("combobox", { name: "Region" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Accounts" })).toBeNull();
   expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();

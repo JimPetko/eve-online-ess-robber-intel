@@ -286,6 +286,8 @@ test.each([
   ["a new password of 11 characters", { currentPassword: PASSWORD, newPassword: "x".repeat(11) }, 400, "weakPassword"],
   ["a new password of 257 characters", { currentPassword: PASSWORD, newPassword: "x".repeat(257) }, 400, "weakPassword"],
   ["the current password again", { currentPassword: PASSWORD, newPassword: PASSWORD }, 400, "weakPassword"],
+  ["a new password holding the username in another case", { currentPassword: PASSWORD, newPassword: "my ADMIN passphrase" }, 400, "weakPassword"],
+  ["one of the most common passwords, in another case", { currentPassword: PASSWORD, newPassword: "Password1234" }, 400, "weakPassword"],
   ["a body that is not an object", [PASSWORD, NEW_PASSWORD], 400, "invalidCredentials"],
 ])("changing a password refuses %s and keeps the old one", async (_, payload, status, code) => {
   const { app, call, session } = setup();
@@ -295,6 +297,25 @@ test.each([
   expect([res.statusCode, res.json()]).toEqual([status, authError(code as AuthErrorCode)]);
   expect((await session(cookie)).status).toBe("active");
   await signIn(app, "Admin", PASSWORD);
+});
+
+test("a refused new password says why: it holds the username, or it is too common", async () => {
+  const { app, call } = setup();
+  const cookie = await signIn(app, "Admin");
+  const refusal = async (newPassword: string) =>
+    (await call("POST", "/api/session/password", cookie, { currentPassword: PASSWORD, newPassword })).json<{ message: string }>().message;
+
+  expect(await refusal("admin's passphrase")).toMatch(/username/);
+  expect(await refusal("qwerty123456")).toMatch(/most common/);
+});
+
+test("an Admin may set a temporary password that holds the username or is common, since it must be replaced", async () => {
+  const { app, call } = setup();
+  const admin = await signIn(app, "Admin");
+  const create = (username: string, password: string) => call("POST", "/api/accounts", admin, { username, password, role: "robber" });
+
+  expect((await create("Robber", "robber-temp")).statusCode).toBe(201);
+  expect((await create("Ratter", "password1234")).statusCode).toBe(201);
 });
 
 test.each([12, 256])("a new password may be exactly %i characters", async (length) => {
