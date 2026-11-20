@@ -1,0 +1,3 @@
+# Daily at 15:00 UTC on days 5-28. Each run exits early once the month is done.
+# Override with CALIBRATION_CRON in .env.
+0 15 5-28 * * run-calibration.sh

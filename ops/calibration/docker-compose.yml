@@ -1,0 +1,18 @@
+services:
+  calibration:
+    build: .
+    image: ess-robber-intel-calibration
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TZ: UTC
+    volumes:
+      - calibration-cache:/cache
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  calibration-cache:

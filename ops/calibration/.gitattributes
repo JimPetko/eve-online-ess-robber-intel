@@ -1,0 +1,2 @@
+# These run on Linux; CRLF breaks bash and supercronic.
+* text=auto eol=lf
