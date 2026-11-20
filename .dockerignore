@@ -1,0 +1,10 @@
+.git
+.claude
+.audit
+node_modules
+dist
+data
+ops
+*.sqlite*
+.env
+.env.*
