@@ -102,18 +102,19 @@ export function registerAuthRoutes(app: FastifyInstance, { db, now, throttle }: 
     if (typeof username !== "string" || typeof password !== "string") {
       return send(reply, refuse(400, "invalidCredentials", "Send a username and a password."));
     }
-    const retryAfter = throttle.retryAfterSeconds(username, request.ip);
-    if (retryAfter > 0) return tooManyAttempts(reply, retryAfter);
-    deleteExpiredSessions(db, now());
     const account = accountByUsername(db, username);
     // An unknown username verifies against a dummy hash so it takes as long as a wrong password.
-    const ok =
-      password.length <= PASSWORD_RULE.maxLength && (await verifyPassword(password, account?.passwordHash ?? DUMMY_HASH));
-    if (account === null || !ok) {
-      throttle.recordFailure(username, request.ip);
-      return send(reply, INVALID_CREDENTIALS);
-    }
-    throttle.recordSuccess(username);
+    const verified = await throttle.attempt(
+      username,
+      request.ip,
+      async () =>
+        password.length <= PASSWORD_RULE.maxLength &&
+        (await verifyPassword(password, account?.passwordHash ?? DUMMY_HASH)) &&
+        account !== null,
+    );
+    if (typeof verified !== "boolean") return tooManyAttempts(reply, verified.retryAfterSeconds);
+    if (!verified || account === null) return send(reply, INVALID_CREDENTIALS);
+    deleteExpiredSessions(db, now());
     return startSession(request, reply, account);
   });
 
@@ -129,19 +130,17 @@ export function registerAuthRoutes(app: FastifyInstance, { db, now, throttle }: 
     if (typeof currentPassword !== "string") {
       return send(reply, refuse(400, "invalidCredentials", "Send your current password."));
     }
-    // Shares sign-in's counters, so a stolen session cookie cannot guess the password without limit.
-    const retryAfter = throttle.retryAfterSeconds(account.username, request.ip);
-    if (retryAfter > 0) return tooManyAttempts(reply, retryAfter);
     const newPassword = parsePassword(fields.newPassword, PASSWORD_RULE.minLength);
     if (typeof newPassword !== "string") return send(reply, newPassword);
     if (newPassword === currentPassword) {
       return send(reply, refuse(400, "weakPassword", "Choose a password different from your current one."));
     }
-    if (!(await verifyPassword(currentPassword, account.passwordHash))) {
-      throttle.recordFailure(account.username, request.ip);
-      return send(reply, refuse(401, "invalidCredentials", "Your current password is wrong."));
-    }
-    throttle.recordSuccess(account.username);
+    // Shares sign-in's counters, so a stolen session cookie cannot guess the password without limit.
+    const verified = await throttle.attempt(account.username, request.ip, () =>
+      verifyPassword(currentPassword, account.passwordHash),
+    );
+    if (typeof verified !== "boolean") return tooManyAttempts(reply, verified.retryAfterSeconds);
+    if (!verified) return send(reply, refuse(401, "invalidCredentials", "Your current password is wrong."));
     const passwordHash = await hashPassword(newPassword);
     replacePassword(db, account.id, passwordHash);
     return startSession(request, reply, { ...account, passwordHash, mustChangePassword: false });

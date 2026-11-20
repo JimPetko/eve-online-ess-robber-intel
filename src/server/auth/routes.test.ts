@@ -482,3 +482,24 @@ test("a successful password change clears the username's failures", async () => 
   for (let i = 0; i < 9; i++) expect((await attempt("not the password")).statusCode).toBe(401);
   expect((await attempt(NEW_PASSWORD)).statusCode).toBe(200);
 });
+
+async function statusCounts(responses: Promise<{ statusCode: number }>[]): Promise<Record<number, number>> {
+  const counts: Record<number, number> = {};
+  for (const { statusCode } of await Promise.all(responses)) counts[statusCode] = (counts[statusCode] ?? 0) + 1;
+  return counts;
+}
+
+test("50 wrong sign-ins for one username sent at once get 10 401s and 40 429s", async () => {
+  const { app } = setup();
+  const attempts = Array.from({ length: 50 }, (_, i) =>
+    app.inject({ method: "POST", url: "/api/session", remoteAddress: `198.51.100.${String(i)}`, payload: wrongPassword("Admin") }),
+  );
+  expect(await statusCounts(attempts)).toEqual({ 401: 10, 429: 40 });
+});
+
+test("50 wrong current passwords sent at once get 10 401s and 40 429s", async () => {
+  const { app, call } = setup();
+  const cookie = await signIn(app, "Admin");
+  const attempts = Array.from({ length: 50 }, () => call("POST", "/api/session/password", cookie, wrongCurrentPassword));
+  expect(await statusCounts(attempts)).toEqual({ 401: 10, 429: 40 });
+});
