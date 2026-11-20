@@ -4,7 +4,7 @@ import {
   type BountyAssumptions,
 } from "./bounty-assumptions.ts";
 import { killsByHourSlot, type HourlyKills } from "./history.ts";
-import { isk, type Isk } from "./ids.ts";
+import { isk, type Isk, type RegionId } from "./ids.ts";
 
 /**
  * A System's Main Bank Ceiling. When Warming Up, `ceiling` covers only the
@@ -36,7 +36,7 @@ function cycleHourWeights(payoutCycleMinutes: number): number[] {
  */
 export function mainBankCeiling(
   history: readonly HourlyKills[],
-  securityStatus: number,
+  region: RegionId,
   assumptions: BountyAssumptions = DEFAULT_BOUNTY_ASSUMPTIONS,
 ): MainBankCeiling {
   const weights = cycleHourWeights(assumptions.payoutCycleMinutes);
@@ -51,7 +51,7 @@ export function mainBankCeiling(
     hoursCovered++;
   });
   const ceiling = isk(
-    weightedKills * iskPerNpcKill(securityStatus, assumptions) * assumptions.mainBankShare,
+    weightedKills * iskPerNpcKill(region, assumptions) * assumptions.mainBankShare,
   );
   return hoursCovered === weights.length
     ? { status: "ready", ceiling }

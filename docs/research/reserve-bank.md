@@ -15,7 +15,7 @@ The Reserve Bank existed from the ESS rework (patch 18.11, Nov 2020) but was loc
   - ESS takes 40% of the BRM-modified bounty (60 direct, ~20 main, ~20 reserve if equal; the poster is unsure) ([thread](https://forums.eveonline.com/t/brm-ess-isk-payouts/361667)) (L).
   - Main 35%, Reserve 5% ([ESS Payout?](https://forums.eveonline.com/t/ess-payout/332417)) (L).
   - CCP_TrashMob (Nov 2020) only says the reserve is "smaller... doesn't empty and just keeps building" ([Singularity thread](https://forums.eveonline.com/t/encounter-surveillance-system-rework-and-dynamic-bounty-systems-are-now-on-singularity/278112)) (H, no numbers).
-- Patch 2022-02-08.1: DBS floor raised 30% to 50%. At the minimum modifier, 100% of bounties are paid directly "with 50% of each bounty entering the ESS Bank". Max Reserve payout +33.3%. Dev comment: "increasing the amount that goes into the reserve banks by taking from what was previously being lost" and "ESS Main / Reserve bank funneling where previously the sum was 58.2%" (ambiguous). Source: [mirror](https://skoli.ru/en/updates/eve-online/20-02-2022-02-08-1); verify against [official 22.02 notes](https://www.eveonline.com/news/view/patch-notes-version-22-02) (M). The "50% enters the bank" wording conflicts with the 40% player estimate.
+- Patch 2022-02-08.1: DBS floor raised 30% to 50%. At the minimum modifier, 100% of bounties are paid directly "with 50% of each bounty entering the ESS Bank". Max Reserve payout +33.3%. Dev comment: "increasing the amount that goes into the reserve banks by taking from what was previously being lost" and "ESS Main / Reserve bank funneling where previously the sum was 58.2%" (ambiguous). Source: [mirror](https://skoli.ru/en/updates/eve-online/20-02-2022-02-08-1); confirmed in the [official 20.02 notes](https://www.eveonline.com/news/view/patch-notes-version-20-02) (H). The 50% applies only at the DBS floor, which 20.09 removed; see [bounty-calibration.md](bounty-calibration.md).
 - DBS modifier applies to nullsec only (not hisec, lowsec, wormholes, Triglavian). It rises with ship losses and falls with ratting. Equilibrium 135%, max 180% after 2020-12-01 ([18.11](https://www.eveonline.com/news/view/patch-notes-for-version-18-11)) (H). DBS thresholds were tweaked again 2021-10-13 ([19.09 notes](https://www.eveonline.com/news/view/patch-notes-version-19-09)).
 - Other income (rogue analysis beacons, etc.): none found; only NPC bounties are documented (absence not proven).
 
@@ -29,8 +29,8 @@ The Reserve Bank existed from the ESS rework (patch 18.11, Nov 2020) but was loc
 
 ## 4. Drains
 - Reserve Security Keys: 8 types, 4 map quadrants (SW/SE/NE/NW) x 15 or 45 min. Keys come from lowsec SCC Secure Key Storage sites. Funds move to cargo every minute as encrypted bonds (converted at an NPC). The rate ramps to a maximum then falls until the unlock ends. TAGN: peak ~150M ISK/min, so a 45 min key is at most a few billion. It does not empty the bank ([Grand Heist](https://www.eveonline.com/news/view/the-grand-heist), [TAGN](https://tagn.wordpress.com/2021/07/27/ccp-releases-the-ess-reserve-bank-keys-and-hands-out-isk-in-eve-online/)) (H/M).
-- Whether payout scales with balance is unknown. 22.02 raised max payout 33.3%, so the peak is probably ~200M/min now (inferred, M). A player says the amount is the same regardless of linker count ([thread](https://forums.eveonline.com/t/are-reserve-banks-broken/386452)) (L).
-- The Reserve never auto-pays. The Main Bank pays contributors every 2h (was 3h) or can be hacked in 6.5 min (H). Alliances "nationalize" reserves by running their own keys (M).
+- Whether payout scales with balance is unknown. 20.02 (2022-02-08) raised max payout 33.3%, so the peak is probably ~200M/min now (inferred, M). A player says the amount is the same regardless of linker count ([thread](https://forums.eveonline.com/t/are-reserve-banks-broken/386452)) (L).
+- The Reserve never auto-pays. The Main Bank pays contributors every 2h45m (19.03; was 3h, then 2h) or can be hacked in 6.5 min (H). Alliances "nationalize" reserves by running their own keys (M).
 - No other drain found.
 
 ## 5. Observability
@@ -43,7 +43,7 @@ None found that estimate reserve banks. Closest: a wallet-journal ratting tracke
 
 ## 7. Uncertain or changed
 - Exact reserve share of each bounty (5% to 20% candidates) and its variation with DBS.
-- The 22.02 change to fill rate and max payout; the "58.2%" remark is unclear.
+- The 20.02 (2022-02-08) change to max payout. The "58.2%" remark is explained in [bounty-calibration.md](bounty-calibration.md).
 - Legion 2025: Marauders blocked from the Main Bank room; 2024-10-30 deployable restriction (secondary mirror, unverified). Nothing found for Equinox 2024 or 2026 affecting fill.
 - Dec 2022 forum complaint that reserves "build at such a slow rate" after unspecified changes (L).
 - Whether unlock payout changed after 2022.

@@ -1,6 +1,6 @@
 # Report a Main Bank Ceiling modelled from NPC kills, not a measured balance
 
-Public ESI exposes no ESS bank balances and no bounty ISK, only an hourly `npc_kills` count per System (`/universe/system_kills`), and the phase of each System's 2h45m Payout Cycle is invisible. So we report a **Main Bank Ceiling**: NPC kills over the last Payout Cycle × ISK-per-kill for the System's Security Band × the Main Bank share of bounties, all held as tunable Bounty Assumptions. We rank Systems by this upper bound because Robbers hunt for potential; the true balance lies anywhere between zero and the ceiling.
+Public ESI exposes no ESS bank balances and no bounty ISK, only an hourly `npc_kills` count per System (`/universe/system_kills`), and the phase of each System's 2h45m Payout Cycle is invisible. So we report a **Main Bank Ceiling**: NPC kills over the last Payout Cycle × ISK-per-kill for the System's Region × the Main Bank share of bounties, all held as tunable Bounty Assumptions. We rank Systems by this upper bound because Robbers hunt for potential; the true balance lies anywhere between zero and the ceiling.
 
 ## Considered Options
 
@@ -11,6 +11,7 @@ Public ESI exposes no ESS bank balances and no bounty ISK, only an hourly `npc_k
 ## Consequences
 
 - A robbed or freshly paid-out bank keeps showing a full ceiling until its contributions age out of the window (up to one Payout Cycle). The UI must say so.
-- Accuracy depends on the Bounty Assumptions (the ~40% Main Bank share and ISK per kill are unverified). Calibration against real payouts from a Ratter's wallet journal needs SSO and is planned for v2.
+- Accuracy depends on the Bounty Assumptions. ISK per kill is calibrated per Region from CCP's Monthly Economic Report (regional bounties ÷ the Region's ESI NPC kills, archived by EVE Ref), with a pooled fallback for Regions without enough sov-null data. Those bounties exclude the Reserve share. The same data puts the Main Bank share at about 40% of them. See [research](../research/bounty-calibration.md).
+- The calibration ages. Rerun `node scripts/calibrate-bounties.mjs <YYYY-MM>` each month once the MER is out, and commit the generated table. Per-System calibration from a Ratter's wallet journal needs SSO and stays a v2 idea.
 - Any future "real" bank figure would be a different term, not a refinement of this one.
-- The Reserve Bank gets the same treatment, inverted: it never pays out, so 30 days of history yields only a floor on accrual, shown as a low–high band because CCP has never published its fill share (player estimates span 5–20%). See [research](../research/reserve-bank.md). It ships provisionally and is cut if it misleads more than it helps.
+- The Reserve Bank gets the same treatment, inverted: it never pays out, so 30 days of history yields only a floor on accrual, shown as a low–high band because CCP has never published its fill share (now 5–10% of the gross bounty, low confidence). ISK per kill excludes that share, so accrual is grossed up by r / (1 − r). See [research](../research/reserve-bank.md). It ships provisionally and is cut if it misleads more than it helps.

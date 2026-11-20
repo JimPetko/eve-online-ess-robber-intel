@@ -7,7 +7,7 @@ Public ESI reports no bank balances, only an hourly NPC kill count per System. T
 - [GLOSSARY.md](GLOSSARY.md) defines every term in this README.
 - [docs/DESIGN.md](docs/DESIGN.md) is the v1 design.
 - [docs/adr/](docs/adr/) holds the decision records.
-- [docs/research/](docs/research/) holds the Reserve Bank research.
+- [docs/research/](docs/research/) holds the Reserve Bank and bounty calibration research.
 
 ## Set up and run
 
@@ -63,7 +63,15 @@ All responses are JSON. The types are in `src/domain/region-view.ts`.
 
 ## Bounty Assumptions
 
-`DEFAULT_BOUNTY_ASSUMPTIONS` in `src/domain/bounty-assumptions.ts` holds every figure that turns kill counts into ISK: the Payout Cycle length, the Main Bank share, the Robber Take share, the reserve fill share, and ISK per NPC kill by Security Band. They are guesses, each with its confidence in a comment. Tune them there and rebuild.
+`DEFAULT_BOUNTY_ASSUMPTIONS` in `src/domain/bounty-assumptions.ts` holds every figure that turns kill counts into ISK: the Payout Cycle length, the Main Bank share, the Robber Take share, the reserve fill share, and ISK per NPC kill by Region. Each carries its source and confidence in a comment. Sources and method: [docs/research/bounty-calibration.md](docs/research/bounty-calibration.md).
+
+ISK per NPC kill comes from `src/domain/isk-per-npc-kill.generated.ts`: CCP's Monthly Economic Report bounties per Region ÷ that Region's ESI NPC kills as archived by EVE Ref. A Region with fewer than 100,000 kills that month, or under 90% of them in sov nullsec, uses the pooled fallback. Recalibrate each month once CCP publishes the MER:
+
+```sh
+node scripts/calibrate-bounties.mjs 2026-11
+```
+
+It downloads about 70 MB, rewrites the generated file, and prints the table. Commit the file.
 
 ## Scripts
 
@@ -72,6 +80,7 @@ All responses are JSON. The types are in `src/domain/region-view.ts`.
 | `npm run dev` | API with `node --watch` plus the Vite dev server. |
 | `npm run build` | Compiles the server to `dist/server` and the UI to `dist/web`. |
 | `npm start` | Runs the built server. |
+| `node scripts/calibrate-bounties.mjs <YYYY-MM>` | Recalibrates ISK per NPC kill from that month's MER and EVE Ref kills. See Bounty Assumptions. |
 | `npm run sync:universe` | Runs one universe sync against `DB_PATH`, prints a JSON summary, and exits non-zero on failure. It takes no flags. |
 | `npm test` | Runs the Vitest suite. |
 | `npm run typecheck` | Type-checks every project. |
@@ -92,7 +101,6 @@ The scheduled poller is the only code that calls ESI. Browsers call only this AP
 ## Known limitations
 
 - Robberies and payouts are invisible. A ceiling can stay high for up to one Payout Cycle after the bank was emptied.
-- The Main Bank share is 40%, an unverified player estimate. A 2022 patch note says 50% of each bounty enters the ESS, which conflicts with it. See [docs/research/reserve-bank.md](docs/research/reserve-bank.md).
+- ISK per NPC kill and the Main Bank share (40%) are Region-level monthly averages from CCP's MER. A single System farmed at the DBS floor, or sitting at its maximum, can differ. The 50% in patch 20.02 (2022-02-08) applied only at the DBS floor, which no longer exists. See [docs/research/bounty-calibration.md](docs/research/bounty-calibration.md).
 - The Reserve Bank Estimate is provisional. It is cut if it misleads more than it helps.
-- ISK per NPC kill is a guess per Security Band, not calibrated.
 - Only sov-held nullsec has an ESS, so NPC nullsec, unclaimed nullsec, wormhole space, Pochven and the Jove Regions are excluded. Scope follows the daily sovereignty refresh, so a System that loses sovereignty can show for up to a day after it has no ESS.

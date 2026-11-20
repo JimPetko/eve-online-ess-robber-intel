@@ -37,9 +37,9 @@ Sovereignty changes over time. Each daily sovereignty refresh decides scope: a S
 All figures below are Bounty Assumptions in one config file.
 
 - **Payout Cycle**: 2h45m.
-- **Main Bank Ceiling** = (kills in the latest 2 hourly snapshots + 0.75 × kills in the 3rd) × ISK-per-kill for the System's Security Band × Main Bank share (0.40). The 0.75 derives from the cycle length.
+- **Main Bank Ceiling** = (kills in the latest 2 hourly snapshots + 0.75 × kills in the 3rd) × ISK-per-kill for the System's Region × Main Bank share (0.40, measured against the same MER `npc_bounties`). ISK-per-kill is calibrated monthly from CCP's Monthly Economic Report, with a pooled fallback ([research](research/bounty-calibration.md)). The 0.75 derives from the cycle length.
 - **Robber Take** = Main Bank Ceiling × 0.80.
-- **Reserve Bank Estimate**: provisional, per [research](research/reserve-bank.md). Sum over the 30-day history of kills × ISK-per-kill × a reserve fill share, shown as a low–high band (fill share 0.05–0.20, both in config). It is a **floor** on accrual since our history began, not a balance: banks may hold years of older bounties, and key unlocks are invisible. Cut it if it does not work well in practice.
+- **Reserve Bank Estimate**: provisional, per [research](research/reserve-bank.md). Sum over the 30-day history of kills × ISK-per-kill × r / (1 − r), where r is the reserve fill share of the gross bounty (ISK-per-kill already excludes it), shown as a low–high band (fill share 0.05–0.10, both in config). It is a **floor** on accrual since our history began, not a balance: banks may hold years of older bounties, and key unlocks are invisible. Cut it if it does not work well in practice.
 - A System is **Warming Up** until its history covers a full Payout Cycle.
 
 ## UI
@@ -65,6 +65,5 @@ All figures below are Bounty Assumptions in one config file.
 
 - Optional EVE SSO: calibrate Bounty Assumptions from a Ratter's wallet journal; client actions (Show Info, Set Destination).
 - zKillboard or crowd-reported Robberies, and flagging Reserve Banks possibly drained by key users.
-- Calibrating ISK-per-kill from CCP's Monthly Economic Report (regional bounty totals ÷ regional NPC kills).
 - Anchoring the reserve fill share with a Robber-entered in-game Agency reading.
 - Distance in jumps from the Robber.
