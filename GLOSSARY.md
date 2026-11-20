@@ -44,6 +44,10 @@ _Avoid_: Estimated Main Bank, payout value, ESS value, bank value
 The share of a Main Bank Ceiling a Robber would actually walk away with (about 80%).
 _Avoid_: Loot, profit
 
+**Ratting Activity**:
+A System's rank in its Region by NPC kills over all the history the tool holds (up to 30 days), shown as "#3 of 94". It shows where Ratters habitually work, so where a Main Bank keeps refilling, even when the System is quiet right now. Equal kills share a rank.
+_Avoid_: Activity score, heat, popularity
+
 **Bounty Assumptions**:
 The tunable figures that turn NPC kill counts into ISK: ISK per NPC kill by Region (calibrated monthly from CCP's Monthly Economic Report, with a pooled fallback), the Payout Cycle length, the Main Bank share of those bounties, and the Robber Take share.
 _Avoid_: Magic numbers, constants

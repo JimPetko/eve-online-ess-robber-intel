@@ -11,7 +11,7 @@ import {
 import type { DotlanTarget } from "./dotlan.ts";
 import { formatIsk } from "./format.ts";
 
-export type SortKey = "name" | "mainBank" | "robberTake";
+export type SortKey = "name" | "mainBank" | "robberTake" | "activity";
 export type Sort = { readonly key: SortKey; readonly dir: "asc" | "desc" };
 export type ViewMode = "flat" | "grouped";
 
@@ -20,12 +20,14 @@ export const DEFAULT_SORT: Sort = { key: "mainBank", dir: "desc" };
 const NUMERIC: Record<Exclude<SortKey, "name">, (s: SystemView) => number> = {
   mainBank: (s) => s.mainBank.ceiling,
   robberTake: (s) => s.robberTake,
+  activity: (s) => s.rattingActivity.npcKills,
 };
 
 const COLUMNS: readonly { key: SortKey; label: string; className: string }[] = [
   { key: "name", label: "System", className: "col-name" },
   { key: "mainBank", label: "Main Bank Ceiling", className: "num" },
   { key: "robberTake", label: "Robber Take", className: "num" },
+  { key: "activity", label: "Ratting Activity", className: "num col-activity" },
 ];
 
 /** Clicking the active column flips it; a new column starts richest (or A) first. */
@@ -133,6 +135,7 @@ export function SystemTable({ view, mode, sort, onSort, surgeThreshold, surgesOn
               <td className="col-sec" />
               <td className="num">{formatIsk(g.total.ceiling)}</td>
               <td className="num">{formatIsk(g.sum("robberTake"))}</td>
+              <td className="num col-activity" />
             </tr>
             {open && g.shown.map(row)}
           </tbody>
@@ -224,7 +227,17 @@ function SystemRow({ system: s, surge, onDotlan }: { system: SystemView; surge: 
         {formatIsk(s.mainBank.ceiling)}
       </td>
       <td className="num">{formatIsk(s.robberTake)}</td>
+      <RattingActivityCell activity={s.rattingActivity} />
     </tr>
+  );
+}
+
+function RattingActivityCell({ activity: a }: { activity: SystemView["rattingActivity"] }) {
+  const over = `${a.npcKills.toLocaleString("en-US")} NPC kills over ${String(a.hoursCovered)}h of history`;
+  return (
+    <td className="num col-activity" title={`${over}; rank ${String(a.rank)} of ${String(a.of)} in the Region`}>
+      {a.npcKills === 0 ? "—" : `#${String(a.rank)} of ${String(a.of)}`}
+    </td>
   );
 }
 
@@ -232,7 +245,7 @@ function EmptyBody({ surgesOnly }: { surgesOnly: boolean }) {
   return (
     <tbody>
       <tr>
-        <td colSpan={4} className="empty">
+        <td colSpan={5} className="empty">
           {surgesOnly ? "No Surges at this Surge Threshold." : "No Systems synced for this Region yet."}
         </td>
       </tr>

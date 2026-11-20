@@ -164,7 +164,7 @@ test("NPC and unclaimed nullsec are out of scope: absent from counts and views, 
   expect((await get(instance, `/api/regions/${String(WICKED_CREEK)}`)).statusCode).toBe(404);
 });
 
-test("GET /api/regions/:id computes ceilings, previous ceiling and Robber Take per System, with no Reserve figure", async () => {
+test("GET /api/regions/:id computes ceilings, previous ceiling, Robber Take and Ratting Activity per System, with no Reserve figure", async () => {
   const db = seed();
   // BUSY has four full hours; FRESH only the latest; QUIET none at all.
   pull(db, hoursBefore(3), [[BUSY, 10]]);
@@ -202,6 +202,8 @@ test("GET /api/regions/:id computes ceilings, previous ceiling and Robber Take p
         // 30 + 20 + 0.75 * 10 = 57.5 weighted kills
         previousMainBank: { status: "ready", ceiling: isk(57.5 * DELVE_ISK * 0.4) },
         robberTake: isk(isk(85 * DELVE_ISK * 0.4) * 0.8),
+        // 10 + 20 + 30 + 40 over four hours: the busiest of Delve's three Systems
+        rattingActivity: { npcKills: 100, rank: 1, of: 3, hoursCovered: 4 },
       },
       {
         id: FRESH,
@@ -211,6 +213,7 @@ test("GET /api/regions/:id computes ceilings, previous ceiling and Robber Take p
         mainBank: { status: "warmingUp", ceiling: isk(6 * DELVE_ISK * 0.4), hoursCovered: 1, hoursNeeded: 3 },
         previousMainBank: null,
         robberTake: isk(isk(6 * DELVE_ISK * 0.4) * 0.8),
+        rattingActivity: { npcKills: 6, rank: 2, of: 3, hoursCovered: 1 },
       },
       {
         id: QUIET,
@@ -220,6 +223,7 @@ test("GET /api/regions/:id computes ceilings, previous ceiling and Robber Take p
         mainBank: { status: "warmingUp", ceiling: isk(0), hoursCovered: 0, hoursNeeded: 3 },
         previousMainBank: null,
         robberTake: isk(0),
+        rattingActivity: { npcKills: 0, rank: 3, of: 3, hoursCovered: 0 },
       },
     ],
   } satisfies RegionView);

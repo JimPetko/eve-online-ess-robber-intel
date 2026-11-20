@@ -1,8 +1,10 @@
 import {
   DEFAULT_BOUNTY_ASSUMPTIONS,
   mainBankCeiling,
+  rattingActivity,
   robberTake,
   type BountyAssumptions,
+  type RattingActivity,
   type RegionView,
   type SyncAttempt,
   type SyncStatus,
@@ -25,7 +27,11 @@ function syncStatus({ latestRun, latestSuccess }: RegionKills, nextPullAt: Date 
   };
 }
 
-function systemView(system: SystemKillHistory, assumptions: BountyAssumptions): SystemView {
+function systemView(
+  system: SystemKillHistory,
+  activity: RattingActivity,
+  assumptions: BountyAssumptions,
+): SystemView {
   const { history, regionId } = system;
   const mainBank = mainBankCeiling(history, regionId, assumptions);
   // History is oldest first and every pull stores a row for every System, so the last entry is the latest pull.
@@ -38,6 +44,7 @@ function systemView(system: SystemKillHistory, assumptions: BountyAssumptions): 
     mainBank,
     previousMainBank: before.length === 0 ? null : mainBankCeiling(before, regionId, assumptions),
     robberTake: robberTake(mainBank.ceiling, assumptions),
+    rattingActivity: activity,
   };
 }
 
@@ -49,6 +56,7 @@ export function regionView(
 ): RegionView | null {
   const first = kills.systems[0];
   if (first === undefined) return null;
+  const activity = rattingActivity(kills.systems.map((s) => s.history));
   const constellations = new Map(kills.systems.map((s) => [s.constellationId, s.constellationName]));
   return {
     region: { id: first.regionId, name: first.regionName },
@@ -56,6 +64,6 @@ export function regionView(
     constellations: [...constellations]
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name)),
-    systems: kills.systems.map((s) => systemView(s, assumptions)),
+    systems: kills.systems.map((s, i) => systemView(s, activity[i] as RattingActivity, assumptions)),
   };
 }
