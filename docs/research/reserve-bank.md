@@ -42,7 +42,7 @@ The Reserve Bank existed from the ESS rework (patch 18.11, Nov 2020) but was loc
 
 ## 4. Drains
 - Reserve Security Keys: 8 types, 4 map quadrants (SW/SE/NE/NW) x 15 or 45 min. Keys come from lowsec SCC Secure Key Storage sites. Funds move to cargo every minute as encrypted bonds (converted at an NPC). The rate ramps to a maximum then falls until the unlock ends. TAGN: peak ~150M ISK/min, so a 45 min key is at most a few billion. It does not empty the bank ([Grand Heist](https://www.eveonline.com/news/view/the-grand-heist), [TAGN](https://tagn.wordpress.com/2021/07/27/ccp-releases-the-ess-reserve-bank-keys-and-hands-out-isk-in-eve-online/)) (H/M).
-- Whether payout scales with balance is unknown. 20.02 (2022-02-08) raised max payout 33.3%, so the peak is probably ~200M/min now (inferred, M). A player says the amount is the same regardless of linker count ([thread](https://forums.eveonline.com/t/are-reserve-banks-broken/386452)) (L).
+- Whether payout scales with balance was unknown here; the 2026-11-19 research found it does not (see the decision above). 20.02 (2022-02-08) raised max payout 33.3%, so the peak is probably ~200M/min now (inferred, M). A player says the amount is the same regardless of linker count ([thread](https://forums.eveonline.com/t/are-reserve-banks-broken/386452)) (L).
 - The Reserve never auto-pays. The Main Bank pays contributors every 2h45m (19.03; was 3h, then 2h) or can be hacked in 6.5 min (H). Alliances "nationalize" reserves by running their own keys (M).
 - No other drain found.
 
