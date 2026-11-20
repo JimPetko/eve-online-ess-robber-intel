@@ -557,6 +557,49 @@ test("creating and deleting an Account are audited with the Admin who did it", a
   ]);
 });
 
+const signInFrom = (headers: Record<string, string>, remoteAddress = "127.0.0.1") =>
+  ({ method: "POST", url: "/api/session", remoteAddress, headers, payload: { username: "Admin", password: PASSWORD } }) as const;
+
+test.each([
+  ["another site", "https://evil.example"],
+  ["the same host on another scheme's port", "https://ess.example:8443"],
+  ['"null"', "null"],
+])("a sign-in sent from %s is refused with 403 and audited, and signs nothing in", async (_, origin) => {
+  const { app, audited } = setup();
+  const res = await app.inject(signInFrom({ host: "ess.example", origin }, "203.0.113.7"));
+
+  expect([res.statusCode, res.json()]).toEqual([403, authError("forbiddenOrigin")]);
+  expect(res.headers["set-cookie"]).toBeUndefined();
+  expect(audited()).toEqual([
+    { at: T0.toISOString(), event: "forbiddenOrigin", origin, method: "POST", url: "/api/session", ip: "203.0.113.7" },
+  ]);
+});
+
+test("a sign-in from the page's own origin, or with no Origin at all, goes through", async () => {
+  const { app } = setup();
+  expect((await app.inject(signInFrom({ host: "ess.example", origin: "https://ess.example" }))).statusCode).toBe(200);
+  expect((await app.inject(signInFrom({ host: "ESS.example:3000", origin: "http://ess.example:3000" }))).statusCode).toBe(200);
+  expect((await app.inject(signInFrom({ host: "ess.example" }))).statusCode).toBe(200);
+});
+
+test("behind a trusted proxy, the Origin must match the host the proxy forwarded", async () => {
+  const { app } = setup({ trustProxy: true });
+  const forwarded = { host: "127.0.0.1:3000", "x-forwarded-host": "ess.example", "x-forwarded-proto": "https" };
+  expect((await app.inject(signInFrom({ ...forwarded, origin: "https://ess.example" }))).statusCode).toBe(200);
+  expect((await app.inject(signInFrom({ ...forwarded, origin: "http://127.0.0.1:3000" }))).statusCode).toBe(403);
+});
+
+test("a foreign Origin cannot sign a session out, but may read", async () => {
+  const { app, admin } = setup();
+  const cookie = await signIn(app, "Admin");
+  const headers = { cookie, origin: "https://evil.example" };
+
+  const signOut = await app.inject({ method: "DELETE", url: "/api/session", headers });
+  expect([signOut.statusCode, signOut.json()]).toEqual([403, authError("forbiddenOrigin")]);
+  const read = await app.inject({ method: "GET", url: "/api/session", headers });
+  expect([read.statusCode, read.json()]).toEqual([200, { status: "active", account: admin }]);
+});
+
 test("a huge sign-in username is audited cut short", async () => {
   const { call, audited } = setup();
   await call("POST", "/api/session", undefined, { username: "x".repeat(100_000), password: "whatever" });

@@ -6,6 +6,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { regionId, type RegionList } from "../domain/index.ts";
 import { enforceAccess } from "./auth/access.ts";
 import { auditLog } from "./auth/audit.ts";
+import { refuseForeignOrigins } from "./auth/origin.ts";
 import { registerAuthRoutes } from "./auth/routes.ts";
 import { createSignInThrottle } from "./auth/throttle.ts";
 import { regionView } from "./region-view.ts";
@@ -43,6 +44,7 @@ export function buildApp({
   // Trusts the immediate peer and nothing past it. Fastify reads a hop count (`trustProxy: 1`) as trust-nothing.
   const app = Fastify({ logger: false, trustProxy: trustProxy && ((_address: string, hop: number) => hop === 0) });
   addSecurityHeaders(app);
+  refuseForeignOrigins(app, audit);
   enforceAccess(app, db, now);
 
   // Fastify's own 4xx (bad JSON, unsupported content type) describe the request; anything else may describe the server.

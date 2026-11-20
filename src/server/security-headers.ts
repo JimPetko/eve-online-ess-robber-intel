@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { isApiUrl } from "./auth/access.ts";
 
 /**
  * The built UI is one script and one stylesheet from this origin, with no inline script or style
@@ -33,7 +34,7 @@ export function addSecurityHeaders(app: FastifyInstance): void {
     void reply.headers(EVERY_RESPONSE);
     // Over plain HTTP the header is ignored, and sending it there would pin a host still being set up.
     if (request.protocol === "https") void reply.header("strict-transport-security", "max-age=31536000");
-    if (/^\/api(?:[/?]|$)/.test(request.url)) void reply.header("cache-control", "no-store");
+    if (isApiUrl(request.url)) void reply.header("cache-control", "no-store");
     done(null, payload);
   });
 }
