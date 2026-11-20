@@ -59,7 +59,7 @@ export async function createAccount(db: DatabaseSync, body: unknown, now: Date):
   const password = parsePassword(fields.password, PASSWORD_RULE.temporaryMinLength);
   if (typeof password !== "string") return password;
   const { role } = fields;
-  if (role !== "admin" && role !== "robber") return refuse(400, "invalidCredentials", 'A role is "admin" or "robber".');
+  if (role !== "admin" && role !== "robber") return refuse(400, "invalidRole", 'A role is "admin" or "robber".');
   const account = insertAccount(db, { username, passwordHash: await hashPassword(password), role, createdAt: now });
   return account ?? refuse(409, "usernameTaken", `There is already an Account named "${username}".`);
 }

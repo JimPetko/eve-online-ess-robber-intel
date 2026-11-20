@@ -311,7 +311,7 @@ test.each([
   ["a missing username", { password: "temporary", role: "robber" }, 400, "invalidUsername"],
   ["a temporary password of 7 characters", { username: "Robber", password: "1234567", role: "robber" }, 400, "weakPassword"],
   ["a missing password", { username: "Robber", role: "robber" }, 400, "weakPassword"],
-  ["an unknown role", { username: "Robber", password: "temporary", role: "owner" }, 400, "invalidCredentials"],
+  ["an unknown role", { username: "Robber", password: "temporary", role: "owner" }, 400, "invalidRole"],
   ["a username taken in another case", { username: "ADMIN", password: "temporary", role: "robber" }, 409, "usernameTaken"],
 ])("creating an Account refuses %s", async (_, payload, status, code) => {
   const { app, call } = setup();

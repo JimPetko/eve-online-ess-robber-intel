@@ -50,6 +50,7 @@ export type AuthErrorCode =
   | "adminRequired"
   | "weakPassword"
   | "invalidUsername"
+  | "invalidRole"
   | "usernameTaken"
   | "cannotDeleteAdmin"
   | "accountNotFound";
