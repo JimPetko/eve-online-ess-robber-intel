@@ -101,6 +101,10 @@ New-Item -ItemType Directory -Force $AppDir, $DataDir, $LogDir | Out-Null
 Start-Transcript -Path $InstallLog -Force | Out-Null
 try {
   $node = (Get-Command node).Source
+  # A per-user Node (nvm-windows, fnm, Volta) would let the user swap the service's binary.
+  if (-not $node.StartsWith($env:ProgramFiles, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "node.exe at $node is not under $env:ProgramFiles. Install Node system-wide for the service."
+  }
   $svc = Get-Service $ServiceName -ErrorAction SilentlyContinue
   if ($svc -and $svc.Status -ne "Stopped") {
     Write-Host "Stopping $ServiceName..."
@@ -162,7 +166,8 @@ try {
   Invoke-Native icacls @($AppDir, "/grant", "${account}:(OI)(CI)RX", "/Q") | Out-Null
 
   Start-Service $ServiceName
-  $healthUrl = "http://${BindHost}:$Port/api/health"
+  $probeHost = if ($BindHost -in "0.0.0.0", "::") { "127.0.0.1" } else { $BindHost }
+  $healthUrl = "http://${probeHost}:$Port/api/health"
   $deadline = (Get-Date).AddSeconds(30)
   while ($true) {
     try {
