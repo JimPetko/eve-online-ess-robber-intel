@@ -177,6 +177,14 @@ async function get(url, userAgent) {
   return res;
 }
 
+/**
+ * Which wanted MER table a zip entry is. Older MERs number their tables
+ * (`data/1_key_economic_figures_by_region.csv`); newer ones don't.
+ */
+export function merFileKey(name, wanted) {
+  return wanted.find((w) => name.replace(/(^|\/)\d+_(?=[^/]+$)/, "$1").endsWith(w));
+}
+
 /** Reads named entries from a zip held in memory (stored or deflated, no zip64). */
 function unzip(zip, wanted) {
   let eocd = zip.length - 22;
@@ -191,7 +199,7 @@ function unzip(zip, wanted) {
     const name = zip.toString("utf8", p + 46, p + 46 + nameLen);
     const local = zip.readUInt32LE(p + 42);
     p += 46 + nameLen + zip.readUInt16LE(p + 30) + zip.readUInt16LE(p + 32);
-    const key = wanted.find((w) => name.endsWith(w));
+    const key = merFileKey(name, wanted);
     if (key === undefined) continue;
     const start = local + 30 + zip.readUInt16LE(local + 26) + zip.readUInt16LE(local + 28);
     const data = zip.subarray(start, start + size);

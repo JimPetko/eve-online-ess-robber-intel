@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calibrate, KillTally, renderModule, tarFiles } from "./calibrate-bounties.mjs";
+import { calibrate, KillTally, merFileKey, renderModule, tarFiles } from "./calibrate-bounties.mjs";
 
 const systemsCsv = `solarsystem_id,solarsystem_name,solarsystem_metagroup,region_id,region_name
 101,A-1,Null Sec (Sov),1,Alpha
@@ -146,5 +146,20 @@ describe("tarFiles", () => {
       end,
     ]);
     expect(await files(tar, 512 * 3)).toEqual([[longName, "[1]"]]);
+  });
+});
+
+describe("merFileKey", () => {
+  const wanted = ["data/key_economic_figures_by_region.csv", "data/static_solarsystems.csv"];
+
+  it("finds tables under their current and older numbered names", () => {
+    expect(merFileKey("data/key_economic_figures_by_region.csv", wanted)).toBe(wanted[0]);
+    expect(merFileKey("data/1_key_economic_figures_by_region.csv", wanted)).toBe(wanted[0]);
+    expect(merFileKey("EVEOnline_MER_202510/data/12_static_solarsystems.csv", wanted)).toBe(wanted[1]);
+  });
+
+  it("ignores other tables", () => {
+    expect(merFileKey("data/2_sinks_and_faucets_history.csv", wanted)).toBeUndefined();
+    expect(merFileKey("data/x_key_economic_figures_by_region.csv", wanted)).toBeUndefined();
   });
 });
