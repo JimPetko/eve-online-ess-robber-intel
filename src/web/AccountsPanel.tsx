@@ -1,10 +1,18 @@
 import { useCallback, useEffect, useState, type SyntheticEvent } from "react";
-import { PASSWORD_RULE, type AccountId, type AccountList, type AccountRole } from "../domain/index.ts";
+import {
+  PASSWORD_RULE,
+  type AccountId,
+  type AccountList,
+  type AccountRole,
+} from "../domain/index.ts";
 import { errorMessage, type Api } from "./api.ts";
 import { formatEveTime } from "./format.ts";
 import { useAction } from "./hooks.ts";
 
-const ROLE_LABEL: Record<AccountRole, string> = { admin: "Admin", robber: "Robber" };
+const ROLE_LABEL: Record<AccountRole, string> = {
+  admin: "Admin",
+  robber: "Robber",
+};
 
 /** Admins only: list, create and delete Accounts. */
 export function AccountsPanel({ api }: { api: Api }) {
@@ -75,52 +83,57 @@ function AccountTable({
               <tr key={a.id}>
                 <th scope="row">
                   {a.username}
-                  {a.mustChangePassword && <span className="badge warming">Must change password</span>}
+                  {a.mustChangePassword && (
+                    <span className="badge warming">Must change password</span>
+                  )}
                 </th>
                 <td>{ROLE_LABEL[a.role]}</td>
                 <td>{formatEveTime(a.createdAt)}</td>
-                <td className="row-actions">
-                  {a.role === "robber" &&
-                    (confirming === a.id ? (
-                      <>
-                        <span>Delete {a.username}?</span>
+                <td>
+                  {a.role === "robber" && (
+                    <div className="row-actions">
+                      {confirming === a.id ? (
+                        <>
+                          <span>Delete {a.username}?</span>
+                          <button
+                            type="button"
+                            className="danger"
+                            disabled={action.pending}
+                            onClick={() => {
+                              action.run(
+                                () => api.deleteAccount(a.id),
+                                () => {
+                                  setConfirming(null);
+                                  onChanged();
+                                },
+                              );
+                            }}
+                          >
+                            Confirm delete
+                          </button>
+                          <button
+                            type="button"
+                            disabled={action.pending}
+                            onClick={() => {
+                              setConfirming(null);
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
                         <button
                           type="button"
-                          className="danger"
-                          disabled={action.pending}
+                          aria-label={`Delete ${a.username}`}
                           onClick={() => {
-                            action.run(
-                              () => api.deleteAccount(a.id),
-                              () => {
-                                setConfirming(null);
-                                onChanged();
-                              },
-                            );
+                            setConfirming(a.id);
                           }}
                         >
-                          Confirm delete
+                          Delete
                         </button>
-                        <button
-                          type="button"
-                          disabled={action.pending}
-                          onClick={() => {
-                            setConfirming(null);
-                          }}
-                        >
-                          Cancel
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        type="button"
-                        aria-label={`Delete ${a.username}`}
-                        onClick={() => {
-                          setConfirming(a.id);
-                        }}
-                      >
-                        Delete
-                      </button>
-                    ))}
+                      )}
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}
@@ -131,7 +144,13 @@ function AccountTable({
   );
 }
 
-function CreateAccount({ api, onCreated }: { api: Api; onCreated: () => void }) {
+function CreateAccount({
+  api,
+  onCreated,
+}: {
+  api: Api;
+  onCreated: () => void;
+}) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<AccountRole>("robber");
@@ -182,7 +201,8 @@ function CreateAccount({ api, onCreated }: { api: Api; onCreated: () => void }) 
           }}
         />
         <span id="temporary-password-hint" className="hint">
-          At least {PASSWORD_RULE.temporaryMinLength} characters. The new Account must change it at first sign-in.
+          At least {PASSWORD_RULE.temporaryMinLength} characters. The new
+          Account must change it at first sign-in.
         </span>
       </div>
       <label className="field">
@@ -202,7 +222,11 @@ function CreateAccount({ api, onCreated }: { api: Api; onCreated: () => void }) 
           {action.error}
         </p>
       )}
-      {created && <p role="status">Created {created}. Give them the temporary password.</p>}
+      {created && (
+        <p role="status">
+          Created {created}. Give them the temporary password.
+        </p>
+      )}
       <button className="primary" type="submit" disabled={action.pending}>
         {action.pending ? "Creating…" : "Create Account"}
       </button>
