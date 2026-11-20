@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "vitest";
 import type { AllianceId, ConstellationId, FactionId, RegionId, SystemId } from "../../domain/index.ts";
+import { insertAccount, insertSession, sessionAccount } from "./accounts.ts";
 import { openDb, SCHEMA_VERSION } from "./db.ts";
 import {
   finishSyncRun,
@@ -84,6 +85,28 @@ test("upgrading a database drops Jove Regions stored before they were out of sco
     expect(listNullsecSystems(db).map((s) => s.id)).toEqual([30000001]);
     expect(db.prepare("SELECT id FROM regions").all()).toEqual([{ id: 10000001 }]);
     expect(db.prepare("SELECT system_id FROM kill_snapshots").all()).toEqual([{ system_id: 30000001 }]);
+    db.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("upgrading a database keeps its sessions and counts them as used at upgrade, not at sign-in", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ess-store-"));
+  try {
+    const path = join(dir, "test.sqlite");
+    const old = openDb(path);
+    const account = insertAccount(old, { username: "Admin", passwordHash: "x", role: "admin", createdAt: new Date() });
+    if (account === null) throw new Error("no Account");
+    const now = Date.now();
+    const day = 24 * 3_600_000;
+    insertSession(old, { tokenHash: "h", accountId: account.id, createdAt: new Date(now - 10 * day), expiresAt: new Date(now + 20 * day) });
+    old.exec("PRAGMA user_version = 5");
+    old.close();
+
+    const db = openDb(path);
+    expect(sessionAccount(db, "h", new Date())).toMatchObject({ username: "Admin" });
+    expect(sessionAccount(db, "h", new Date(now + 7 * day + 60_000))).toBeNull();
     db.close();
   } finally {
     rmSync(dir, { recursive: true, force: true });

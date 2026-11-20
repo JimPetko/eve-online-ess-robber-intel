@@ -80,26 +80,42 @@ export function replacePassword(db: DatabaseSync, id: AccountId, passwordHash: s
   });
 }
 
+/** A session also ends after 7 days unused, besides at its `expiresAt`. */
+const SESSION_IDLE_MS = 7 * 24 * 3_600_000;
+/** Use is recorded at most hourly, not on every request, so a session may end up to an hour early. */
+const SESSION_TOUCH_MS = 3_600_000;
+
+const before = (now: Date, ms: number) => new Date(now.getTime() - ms).toISOString();
+
 export function insertSession(
   db: DatabaseSync,
   session: { readonly tokenHash: string; readonly accountId: AccountId; readonly createdAt: Date; readonly expiresAt: Date },
 ): void {
-  db.prepare("INSERT INTO sessions (token_hash, account_id, created_at, expires_at) VALUES (?, ?, ?, ?)").run(
+  const createdAt = session.createdAt.toISOString();
+  db.prepare("INSERT INTO sessions (token_hash, account_id, created_at, expires_at, last_seen_at) VALUES (?, ?, ?, ?, ?)").run(
     session.tokenHash,
     session.accountId,
-    session.createdAt.toISOString(),
+    createdAt,
     session.expiresAt.toISOString(),
+    createdAt,
   );
 }
 
+/** The session's Account, recording the use; null for an unknown, expired or idle session, which is deleted. */
 export function sessionAccount(db: DatabaseSync, tokenHash: string, now: Date): StoredAccount | null {
   const row = db
-    .prepare(`SELECT ${ACCOUNT_COLUMNS}, s.expires_at FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.token_hash = ?`)
+    .prepare(
+      `SELECT ${ACCOUNT_COLUMNS}, s.expires_at, s.last_seen_at FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.token_hash = ?`,
+    )
     .get(tokenHash);
   if (row === undefined) return null;
-  if (str(row, "expires_at") <= now.toISOString()) {
+  const lastSeenAt = str(row, "last_seen_at");
+  if (str(row, "expires_at") <= now.toISOString() || lastSeenAt <= before(now, SESSION_IDLE_MS)) {
     deleteSession(db, tokenHash);
     return null;
+  }
+  if (lastSeenAt <= before(now, SESSION_TOUCH_MS)) {
+    db.prepare("UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?").run(now.toISOString(), tokenHash);
   }
   return storedAccount(row);
 }
@@ -109,5 +125,5 @@ export function deleteSession(db: DatabaseSync, tokenHash: string): void {
 }
 
 export function deleteExpiredSessions(db: DatabaseSync, now: Date): void {
-  db.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(now.toISOString());
+  db.prepare("DELETE FROM sessions WHERE expires_at <= ? OR last_seen_at <= ?").run(now.toISOString(), before(now, SESSION_IDLE_MS));
 }

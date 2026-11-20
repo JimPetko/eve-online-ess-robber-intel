@@ -10,7 +10,8 @@ import { buildApp } from "../app.ts";
 import { openDb } from "../store/db.ts";
 import { addAccount, PASSWORD, signIn } from "../test-support.ts";
 
-const DAY = 24 * 3_600_000;
+const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
 const T0 = new Date("2026-11-19T12:00:00Z");
 const NEW_PASSWORD = "a brand new passphrase";
 
@@ -151,11 +152,43 @@ test("a session ends 30 days after sign-in however much it is used", async () =>
   const { app, call, admin, session, advance } = setup();
   const cookie = await signIn(app, "Admin");
 
-  advance(30 * DAY - 1);
+  for (let day = 6; day < 30; day += 6) {
+    advance(6 * DAY);
+    expect(await session(cookie)).toEqual({ status: "active", account: admin });
+  }
+  advance(6 * DAY - 1);
   expect(await session(cookie)).toEqual({ status: "active", account: admin });
   advance(1);
   expect(await session(cookie)).toEqual({ status: "signedOut" });
   expect((await call("GET", "/api/regions", cookie)).json()).toEqual(authError("signInRequired"));
+});
+
+test("a session unused for 7 days ends and answers like one that never existed, while a used one goes on", async () => {
+  const { app, call, admin, session, advance } = setup();
+  const used = await signIn(app, "Admin");
+  const unused = await signIn(app, "Admin");
+
+  advance(7 * DAY - 1);
+  expect(await session(used)).toEqual({ status: "active", account: admin });
+  advance(1);
+  expect(await session(unused)).toEqual({ status: "signedOut" });
+  expect((await call("GET", "/api/regions", unused)).json()).toEqual(authError("signInRequired"));
+  advance(7 * DAY - 2);
+  expect(await session(used)).toEqual({ status: "active", account: admin });
+});
+
+test("use is recorded at most hourly, so a session last used within an hour of its previous use may end up to an hour early", async () => {
+  const { app, admin, session, advance } = setup();
+  const early = await signIn(app, "Admin");
+  const hourly = await signIn(app, "Admin");
+
+  advance(HOUR - 1);
+  await session(early);
+  advance(1);
+  await session(hourly);
+  advance(7 * DAY - HOUR);
+  expect(await session(early)).toEqual({ status: "signedOut" });
+  expect(await session(hourly)).toEqual({ status: "active", account: admin });
 });
 
 test("Regions need an active session: 401 signed out, 403 while the password must change", async () => {
