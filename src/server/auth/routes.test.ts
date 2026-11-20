@@ -19,7 +19,6 @@ afterEach(async () => {
   await Promise.all(apps.splice(0).map((a) => a.close()));
 });
 
-/** An app over a fresh database with one active Admin, plus a clock the test can move. */
 function setup(options: { trustProxy?: boolean } = {}) {
   const db = openDb(":memory:");
   const admin = addAccount(db, "Admin", "admin");
@@ -47,7 +46,6 @@ function setup(options: { trustProxy?: boolean } = {}) {
 
 const authError = (error: AuthErrorCode) => ({ error, message: expect.any(String) as unknown });
 
-/** The attributes of a Set-Cookie header, keyed by lower-cased name. */
 function cookieAttributes(setCookie: unknown): Record<string, string> {
   if (typeof setCookie !== "string") throw new Error(`no single Set-Cookie: ${String(setCookie)}`);
   const [first = "", ...rest] = setCookie.split(";").map((part) => part.trim());

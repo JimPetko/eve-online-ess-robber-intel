@@ -26,7 +26,6 @@ import type { SignInThrottle } from "./throttle.ts";
 
 type Fields = Readonly<Record<string, unknown>>;
 
-/** A request body's fields, or none when it is not a JSON object. */
 const fieldsOf = (body: unknown): Fields =>
   typeof body === "object" && body !== null && !Array.isArray(body) ? (body as Fields) : {};
 
@@ -53,10 +52,6 @@ function parsePassword(value: unknown, minLength: number): string | Refusal {
   return refuse(400, "weakPassword", `A password is ${String(minLength)} to ${String(PASSWORD_RULE.maxLength)} characters.`);
 }
 
-/**
- * Validates and stores a new Account with a temporary password it must change at first sign-in.
- * Shared by `POST /api/accounts` and the create-admin CLI.
- */
 export async function createAccount(db: DatabaseSync, body: unknown, now: Date): Promise<AccountView | Refusal> {
   const fields = fieldsOf(body);
   const username = parseUsername(fields.username);
@@ -64,7 +59,6 @@ export async function createAccount(db: DatabaseSync, body: unknown, now: Date):
   const password = parsePassword(fields.password, PASSWORD_RULE.temporaryMinLength);
   if (typeof password !== "string") return password;
   const { role } = fields;
-  // The contract has no code for a bad role; only a broken client sends one.
   if (role !== "admin" && role !== "robber") return refuse(400, "invalidCredentials", 'A role is "admin" or "robber".');
   const account = insertAccount(db, { username, passwordHash: await hashPassword(password), role, createdAt: now });
   return account ?? refuse(409, "usernameTaken", `There is already an Account named "${username}".`);
@@ -79,7 +73,6 @@ export interface AuthRouteDeps {
 export function registerAuthRoutes(app: FastifyInstance, { db, now, throttle }: AuthRouteDeps): void {
   const secure = (request: FastifyRequest) => request.protocol === "https";
 
-  /** Starts a session for the Account and sets its cookie. */
   function startSession(request: FastifyRequest, reply: FastifyReply, account: StoredAccount): SessionView {
     const token = newSessionToken();
     const createdAt = now();

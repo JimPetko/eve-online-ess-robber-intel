@@ -9,7 +9,6 @@ const USAGE = 'usage: accounts-cli create-admin "<username>"   (the password is 
 
 export interface CliResult {
   readonly exitCode: 0 | 1;
-  /** Printed to stdout on success, stderr on failure. */
   readonly output: string;
 }
 

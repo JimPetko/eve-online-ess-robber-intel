@@ -15,7 +15,6 @@ export function tokenHash(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-/** The session token in a Cookie header, if it carries one that could be ours. */
 export function sessionToken(cookieHeader: string | undefined): string | null {
   for (const pair of (cookieHeader ?? "").split(";")) {
     const eq = pair.indexOf("=");
@@ -26,7 +25,6 @@ export function sessionToken(cookieHeader: string | undefined): string | null {
   return null;
 }
 
-/** A Set-Cookie value that stores `token`, or clears the cookie when it is null. */
 export function sessionCookie(token: string | null, secure: boolean): string {
   const maxAge = token === null ? 0 : SESSION_LIFETIME_MS / 1000;
   return [

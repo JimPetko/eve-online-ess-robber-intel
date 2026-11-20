@@ -27,7 +27,6 @@ export type Api = {
   readonly deleteAccount: (id: AccountId) => Promise<void>;
 };
 
-/** Any non-2xx answer. `code` is the server's AuthErrorCode when it sent one; the UI branches on it. */
 export class ApiError extends Error {
   readonly status: number;
   readonly code: AuthErrorCode | null;
@@ -39,7 +38,6 @@ export class ApiError extends Error {
   }
 }
 
-/** The text to show for a failed call: the server's message when it sent one. */
 export const errorMessage = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
 function isAuthError(body: unknown): body is AuthError {
@@ -81,10 +79,6 @@ export function httpApi(fetchFn: typeof fetch = fetch): Api {
   };
 }
 
-/**
- * Serves the fixture with timestamps relative to each call, so freshness stays put. Accounts and
- * the session live in memory and start signed in as an active Admin.
- */
 export function fixtureApi(
   sync: FixtureSync = "recent",
   now: () => Date = () => new Date(),

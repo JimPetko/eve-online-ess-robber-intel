@@ -6,17 +6,12 @@ import { ApiError, errorMessage, type Api } from "./api.ts";
 import { App } from "./App.tsx";
 import { ChangePassword, SignIn } from "./AuthForms.tsx";
 
-/**
- * `expired` is signed out because a call found no session (it timed out, or an Admin deleted the
- * Account), so the sign-in screen says why. `unreachable` is a session check that never got an answer.
- */
 type GateState =
   | { readonly status: "loading" }
   | { readonly status: "unreachable"; readonly message: string }
   | { readonly status: "expired" }
   | SessionView;
 
-/** Wraps every call so a `signInRequired` answer, from any screen, sends the gate back to sign-in. */
 function watchSession(api: Api, onSignedOut: () => void): Api {
   const watch =
     <A extends unknown[], R>(call: (...args: A) => Promise<R>) =>
@@ -55,7 +50,6 @@ export function AuthGate({ api }: { api: Api }) {
   useEffect(checkSession, [checkSession]);
 
   const signOut = () => {
-    // Whatever the server answers, this browser is done with the session.
     api
       .signOut()
       .catch(() => undefined)

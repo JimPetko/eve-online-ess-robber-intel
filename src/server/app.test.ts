@@ -127,7 +127,6 @@ function app(db = seed(), options: { webRoot?: string } = {}) {
 
 const cookies = new WeakMap<ReturnType<typeof app>, Promise<string>>();
 
-/** A GET as a signed-in Robber, signing in once per app. */
 async function get(instance: ReturnType<typeof app>, url: string) {
   const cookie = cookies.get(instance) ?? signIn(instance, ROBBER);
   cookies.set(instance, cookie);

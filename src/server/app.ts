@@ -18,7 +18,6 @@ export interface AppDeps {
   readonly webRoot?: string;
   /** Behind a reverse proxy: take the client's IP and protocol from its X-Forwarded-* headers. */
   readonly trustProxy?: boolean;
-  /** The clock for session expiry and the sign-in throttle. */
   readonly now?: () => Date;
 }
 

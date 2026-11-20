@@ -22,7 +22,6 @@ export type FixtureAccounts = {
     Api,
     "session" | "signIn" | "signOut" | "changePassword" | "accounts" | "createAccount" | "deleteAccount"
   >;
-  /** Runs `serve` only for an active session, failing the way the server does otherwise. */
   readonly whenActive: <T>(serve: () => T) => Promise<T>;
 };
 
@@ -37,16 +36,11 @@ const fail = (status: number, code: AuthErrorCode, message: string): never => {
   throw new ApiError(status, code, message);
 };
 
-/** A thrown ApiError becomes a rejection, as it would from the HTTP client. */
 const settle = <T,>(f: () => T): Promise<T> =>
   new Promise<T>((resolve) => {
     resolve(f());
   });
 
-/**
- * An in-memory stand-in for the server's Accounts and session endpoints, with the same rules
- * and error codes. `signedInAs` names the Account whose session is open at the start.
- */
 export function fixtureAccounts(
   seed: readonly FixtureAccount[] = FIXTURE_SEED,
   signedInAs: string | null = "admin",

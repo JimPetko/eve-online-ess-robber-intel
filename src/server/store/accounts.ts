@@ -3,7 +3,6 @@ import { accountId, type AccountId, type AccountList, type AccountRole, type Acc
 import { transaction } from "./db.ts";
 import { num, str, type Row } from "./store.ts";
 
-/** An Account as the server sees it: the view plus what only sign-in needs. */
 export type StoredAccount = AccountView & { readonly passwordHash: string; readonly mustChangePassword: boolean };
 
 const ACCOUNT_COLUMNS = "a.id, a.username, a.role, a.password_hash, a.must_change_password";
@@ -44,7 +43,6 @@ export function insertAccount(
   return row === undefined ? null : accountView(row);
 }
 
-/** Usernames match whatever their case. */
 export function accountByUsername(db: DatabaseSync, username: string): StoredAccount | null {
   const row = db.prepare(`SELECT ${ACCOUNT_COLUMNS} FROM accounts a WHERE a.username = ?`).get(username);
   return row === undefined ? null : storedAccount(row);
@@ -94,7 +92,6 @@ export function insertSession(
   );
 }
 
-/** The Account a live session belongs to. A session met after it expired is deleted and yields null. */
 export function sessionAccount(db: DatabaseSync, tokenHash: string, now: Date): StoredAccount | null {
   const row = db
     .prepare(`SELECT ${ACCOUNT_COLUMNS}, s.expires_at FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.token_hash = ?`)

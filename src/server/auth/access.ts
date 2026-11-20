@@ -10,7 +10,6 @@ import { sessionToken, tokenHash } from "./session-cookie.ts";
  */
 export type Access = "public" | "signedIn" | "active" | "admin";
 
-/** The session a request carries, once the access hook has checked it is live. */
 export interface SignedIn {
   readonly tokenHash: string;
   readonly account: StoredAccount;
@@ -54,7 +53,6 @@ export function sessionView(account: StoredAccount | null): SessionView {
   return { status: mustChangePassword ? "mustChangePassword" : "active", account: { id, username, role } };
 }
 
-/** For a handler behind `signedIn` or stricter, where the access hook has already refused a signed-out request. */
 export function signedInAs(request: FastifyRequest): SignedIn {
   if (request.signedIn === null) throw new Error(`${request.method} ${request.url} ran without a session`);
   return request.signedIn;

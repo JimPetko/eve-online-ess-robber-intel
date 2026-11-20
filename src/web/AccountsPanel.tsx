@@ -14,7 +14,6 @@ const ROLE_LABEL: Record<AccountRole, string> = {
   robber: "Robber",
 };
 
-/** Admins only: list, create and delete Accounts. */
 export function AccountsPanel({ api }: { api: Api }) {
   const [list, setList] = useState<AccountList["accounts"] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);

@@ -19,7 +19,6 @@ export function createSignInThrottle(now: () => Date): SignInThrottle {
   const userKey = (username: string) => `user:${username.toLowerCase()}`;
   const keys = (username: string, ip: string) => [userKey(username), `ip:${ip}`];
 
-  /** The failures still inside the window, dropping the rest and forgetting keys left with none. */
   function recent(key: string, at: number): number[] {
     const kept = (failures.get(key) ?? []).filter((t) => t > at - WINDOW_MS);
     if (kept.length === 0) failures.delete(key);
