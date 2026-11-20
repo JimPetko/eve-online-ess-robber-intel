@@ -73,6 +73,8 @@ node scripts/calibrate-bounties.mjs 2026-11
 
 It downloads about 70 MB, rewrites the generated file, and prints the table. Commit the file.
 
+To run this every month without a human, see [ops/calibration/README.md](ops/calibration/README.md).
+
 ## Scripts
 
 | Script | Does |
