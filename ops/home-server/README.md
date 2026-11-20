@@ -1,6 +1,6 @@
 # Home server (Docker)
 
-Runs the server and web UI as a container on a Docker host, published to the internet over HTTPS by a Tailscale Funnel container at `https://ess-robber-intel.<tailnet>.ts.net`. The host needs Docker with Compose only: no Node and no GitHub access, because `deploy.sh` ships the code over SSH.
+Runs the server and web UI as a container on a Docker host, published to the internet over HTTPS by a Tailscale Funnel container at **https://ess-robber-intel.tail719253.ts.net**. The host needs Docker with Compose only: no Node and no GitHub access, because `deploy.sh` ships the code over SSH.
 
 ## Deploy or update
 
@@ -48,18 +48,20 @@ The Admin must choose a new password at first sign-in, then creates the other Ac
 
 ## Public URL (Tailscale Funnel)
 
-The `tailscale` service joins your tailnet as its own machine, `ess-robber-intel`, and publishes the server through Funnel at `https://ess-robber-intel.<tailnet>.ts.net`. Funnel terminates HTTPS with a certificate Tailscale renews itself. The router needs no port forwarding and the home IP stays hidden. The `server` service publishes no port, so the only way in is through Funnel.
+The `tailscale` service joins your tailnet as its own machine, `ess-robber-intel`, and publishes the server through Funnel at **https://ess-robber-intel.tail719253.ts.net**. Funnel terminates HTTPS with a certificate Tailscale renews itself. The router needs no port forwarding and the home IP stays hidden. The `server` service publishes no port, so the only way in is through Funnel.
 
 One-time setup:
 
 1. In the Tailscale admin console, make sure HTTPS certificates and Funnel are allowed for your tailnet's members (`tailscale funnel` on any machine prints the approval link when they are off).
-2. Generate an auth key under **Settings > Keys**. Make it neither reusable nor ephemeral. Add it to `.env` on the host yourself, so it never leaves the host:
+2. Deploy. On its first start the `tailscale` service has no identity yet, so it logs a sign-in link:
 
    ```sh
-   echo 'TS_AUTHKEY=tskey-auth-...' >> ~/ess-robber-intel/ops/home-server/.env
+   docker compose logs tailscale | grep -o 'https://login.tailscale.com/[^ ]*'
    ```
 
-3. Deploy (or `docker compose up -d`). The node signs in once and keeps its identity in the `ess-robber-intel_ts-state` volume, so the key is only used at first start and can then be deleted from `.env`.
+   Open it while signed in to Tailscale to add the `ess-robber-intel` machine. It keeps its identity in the `ess-robber-intel_ts-state` volume, so this is needed only once.
+
+For an unattended first start, put a one-off auth key (admin console, **Settings > Keys**, neither reusable nor ephemeral) in `ops/home-server/.env` on the host as `TS_AUTHKEY=tskey-auth-...` instead. `deploy.sh` keeps that file across redeploys.
 
 `tailscale-serve.json` holds the Funnel config. Check it with `docker compose exec tailscale tailscale funnel status`. Take the site offline with `docker compose stop tailscale`.
 

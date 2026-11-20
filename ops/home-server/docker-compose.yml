@@ -22,14 +22,14 @@ services:
         max-file: "3"
 
   # Joins the tailnet as its own machine and publishes the server through Funnel at
-  # https://ess-robber-intel.<tailnet>.ts.net. Userspace networking, so it needs no extra privileges.
+  # https://ess-robber-intel.tail719253.ts.net. Userspace networking, so it needs no extra privileges.
   tailscale:
     image: tailscale/tailscale:v1.104.7@sha256:72c1e19e0aedca96b8533bbb0b4368564410ff20b17e53b804eb6c1f04a31be4
     hostname: ess-robber-intel
     restart: unless-stopped
     environment:
       TS_HOSTNAME: ess-robber-intel
-      # Only needed for the first start; the node's identity then lives in ts-state.
+      # Optional. Without it, the first start logs a sign-in link instead (see README).
       TS_AUTHKEY: ${TS_AUTHKEY:-}
       TS_STATE_DIR: /var/lib/tailscale
       TS_USERSPACE: "true"
