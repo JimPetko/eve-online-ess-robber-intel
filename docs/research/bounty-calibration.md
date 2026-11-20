@@ -100,7 +100,9 @@ A non-negative least-squares fit of the same data by true-security band (0.0 to 
 - The figures are Region averages. A single System at the DBS floor or at 200% differs more. Confidence medium-high per Region, low for any one System-hour.
 - MER `Null Sec (Sov)` means claimable, not held, so unclaimed Systems in a Region count toward its kills and its bounties.
 
-## Reserve fill share: 0.05 to 0.10
+## Reserve fill share: 0.05 to 0.10 (retired)
+
+No longer used: the Reserve Bank Estimate it fed was cut on 2026-11-19 ([decision](reserve-bank.md#decision-2026-11-19-cut-the-reserve-bank-estimate)). Kept for the record.
 
 CCP says only "a smaller portion" of each bounty (18.11) and "a small part" (Grand Heist). The one player figure is a 35/5 Main/Reserve split ([forum](https://forums.eveonline.com/t/ess-payout/332417)). The old 0.20 upper bound assumed a 40% ESS cut split equally between the banks ([forum](https://forums.eveonline.com/t/brm-ess-isk-payouts/361667)). The MER shows the Main Bank alone takes about 0.40, which rules that split out. The band is now 0.05 to 0.10, the high end left at twice the only figure. Confidence low. The MER cannot measure it, because `npc_bounties` excludes the Reserve share.
 

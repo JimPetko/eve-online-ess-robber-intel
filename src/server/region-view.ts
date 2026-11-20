@@ -1,7 +1,6 @@
 import {
   DEFAULT_BOUNTY_ASSUMPTIONS,
   mainBankCeiling,
-  reserveBankEstimate,
   robberTake,
   type BountyAssumptions,
   type RegionView,
@@ -39,7 +38,6 @@ function systemView(system: SystemKillHistory, assumptions: BountyAssumptions): 
     mainBank,
     previousMainBank: before.length === 0 ? null : mainBankCeiling(before, regionId, assumptions),
     robberTake: robberTake(mainBank.ceiling, assumptions),
-    reserve: reserveBankEstimate(history, regionId, assumptions),
   };
 }
 

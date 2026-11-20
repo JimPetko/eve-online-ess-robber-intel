@@ -5,7 +5,6 @@ export type BountyAssumptions = {
   readonly payoutCycleMinutes: number;
   readonly mainBankShare: number;
   readonly robberTakeShare: number;
-  readonly reserveFillShare: { readonly low: number; readonly high: number };
   /**
    * ISK of bounty per ESI NPC kill, after the Dynamic Bounty System and
    * including the Main Bank share but not the Reserve share, as MER
@@ -26,12 +25,6 @@ export const DEFAULT_BOUNTY_ASSUMPTIONS: BountyAssumptions = {
   // Share of the Main Bank a Robber walks away with. EVE University wiki; it
   // was 0.70 at launch in 2020. Confidence medium.
   robberTakeShare: 0.8,
-  // Share of each gross bounty that lands in the Reserve Bank. ISK per NPC kill
-  // already excludes it, so accrual is r / (1 - r) of it. CCP never published
-  // it. The only player figure is 0.05 (a 35/5 split); 0.20 assumed an equal
-  // split of a 40% ESS cut, which the MER rules out because the Main Bank alone
-  // takes about 0.40. Confidence low (docs/research/bounty-calibration.md).
-  reserveFillShare: { low: 0.05, high: 0.1 },
   // Calibrated per Region from CCP's Monthly Economic Report; rerun
   // scripts/calibrate-bounties.mjs each month. Confidence medium-high per
   // Region, low for any one System-hour.

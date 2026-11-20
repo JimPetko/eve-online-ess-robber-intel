@@ -23,7 +23,7 @@ The ESS datavault that accumulates a share of bounties and pays it out to contri
 _Avoid_: ESS value, payout pool
 
 **Reserve Bank**:
-The locked ESS datavault that never pays out on a schedule and opens only with a Reserve Security Key.
+The locked ESS datavault that never pays out on a schedule and opens only with a Reserve Security Key. The tool reports nothing about it: a key pays the same whatever the balance.
 _Avoid_: Reserve, secondary bank
 
 **Payout Cycle**:
@@ -44,12 +44,8 @@ _Avoid_: Estimated Main Bank, payout value, ESS value, bank value
 The share of a Main Bank Ceiling a Robber would actually walk away with (about 80%).
 _Avoid_: Loot, profit
 
-**Reserve Bank Estimate**:
-This tool's low–high band for how much ISK a Reserve Bank has gained during the history we hold. A floor on the true balance, never the balance itself. Provisional: kept only if it proves useful.
-_Avoid_: Reserve value, reserve balance (implies measured)
-
 **Bounty Assumptions**:
-The tunable figures that turn NPC kill counts into ISK: ISK per NPC kill by Region (calibrated monthly from CCP's Monthly Economic Report, with a pooled fallback), the Payout Cycle length, the Main Bank share of those bounties, the Robber Take share, and the reserve fill share band (a share of the gross bounty, which ISK per NPC kill excludes).
+The tunable figures that turn NPC kill counts into ISK: ISK per NPC kill by Region (calibrated monthly from CCP's Monthly Economic Report, with a pooled fallback), the Payout Cycle length, the Main Bank share of those bounties, and the Robber Take share.
 _Avoid_: Magic numbers, constants
 
 **Warming Up**:
