@@ -88,7 +88,7 @@ const MIGRATIONS: readonly string[] = [
   // Accounts for public hosting. Passwords are scrypt hashes; session tokens are stored as
   // SHA-256 hashes, so a copy of the database yields neither a password nor a live session.
   `
-  CREATE TABLE accounts (
+  CREATE TABLE IF NOT EXISTS accounts (
     id                   INTEGER PRIMARY KEY,
     username             TEXT NOT NULL UNIQUE COLLATE NOCASE,
     password_hash        TEXT NOT NULL,
@@ -96,13 +96,13 @@ const MIGRATIONS: readonly string[] = [
     must_change_password INTEGER NOT NULL CHECK (must_change_password IN (0, 1)),
     created_at           TEXT NOT NULL
   );
-  CREATE TABLE sessions (
+  CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY,
     account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
     created_at TEXT NOT NULL,
     expires_at TEXT NOT NULL
   );
-  CREATE INDEX sessions_account ON sessions(account_id);
+  CREATE INDEX IF NOT EXISTS sessions_account ON sessions(account_id);
   `,
 ];
 
