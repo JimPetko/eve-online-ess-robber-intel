@@ -1,6 +1,6 @@
 # Home server (Docker)
 
-Runs the server and web UI as one container on a Docker host. The container listens on the host only (`127.0.0.1:3917`), and Tailscale Funnel publishes it at **https://chimera.tail719253.ts.net**. The host needs Docker with Compose only: no Node and no GitHub access, because `deploy.sh` ships the code over SSH.
+Runs the server and web UI as a container on a Docker host, published to the internet over HTTPS by a Tailscale Funnel container at `https://ess-robber-intel.<tailnet>.ts.net`. The host needs Docker with Compose only: no Node and no GitHub access, because `deploy.sh` ships the code over SSH.
 
 ## Deploy or update
 
@@ -48,26 +48,22 @@ The Admin must choose a new password at first sign-in, then creates the other Ac
 
 ## Public URL (Tailscale Funnel)
 
-Tailscale Funnel terminates HTTPS with a certificate it renews itself and forwards to `127.0.0.1:3917`. The router needs no port forwarding and the home IP stays hidden.
+The `tailscale` service joins your tailnet as its own machine, `ess-robber-intel`, and publishes the server through Funnel at `https://ess-robber-intel.<tailnet>.ts.net`. Funnel terminates HTTPS with a certificate Tailscale renews itself. The router needs no port forwarding and the home IP stays hidden. The `server` service publishes no port, so the only way in is through Funnel.
 
-One-time setup on the host, as a Tailscale operator (`sudo tailscale set --operator=$USER`):
+One-time setup:
 
-1. Approve Funnel and HTTPS certificates for the machine in the Tailscale admin console. `tailscale funnel 3917` prints the link when they are off.
-2. Publish it. `--bg` stores the config in tailscaled, so it survives reboots and redeploys:
+1. In the Tailscale admin console, make sure HTTPS certificates and Funnel are allowed for your tailnet's members (`tailscale funnel` on any machine prints the approval link when they are off).
+2. Generate an auth key under **Settings > Keys**. Make it neither reusable nor ephemeral. Add it to `.env` on the host yourself, so it never leaves the host:
 
    ```sh
-   tailscale funnel --bg 3917
-   tailscale funnel status
+   echo 'TS_AUTHKEY=tskey-auth-...' >> ~/ess-robber-intel/ops/home-server/.env
    ```
 
-Take it offline with `tailscale funnel --https=443 off`.
+3. Deploy (or `docker compose up -d`). The node signs in once and keeps its identity in the `ess-robber-intel_ts-state` volume, so the key is only used at first start and can then be deleted from `.env`.
 
-Two settings keep this safe, and both are the defaults in `docker-compose.yml`:
+`tailscale-serve.json` holds the Funnel config. Check it with `docker compose exec tailscale tailscale funnel status`. Take the site offline with `docker compose stop tailscale`.
 
-- **The container port is bound to `127.0.0.1`.** Funnel is the only way in. A client that reached the port directly could forge `X-Forwarded-For`.
-- **`TRUST_PROXY=1`.** The app trusts exactly one proxy in front. The session cookie is marked `Secure`, and the sign-in throttle counts each client's own IP, not the proxy's. Set `TRUST_PROXY=` (empty) in `ops/home-server/.env` only if you run the app without a proxy.
-
-Because of the `127.0.0.1` binding, the LAN address `http://192.168.0.187:3917` no longer works. Use the public URL, or the same URL from inside the tailnet.
+`TRUST_PROXY=1` (the default) tells the app to trust exactly one proxy in front, the `tailscale` service. The session cookie is then marked `Secure`, and the sign-in throttle counts each client's own IP, not the proxy's. Do not publish the `server` port: a client that reached it directly could forge `X-Forwarded-For`.
 
 ## On the host
 
@@ -81,4 +77,4 @@ docker compose down                 # stop; data stays in the ess-robber-intel_e
 - The Compose project is `ess-robber-intel`, and the database lives in the `ess-robber-intel_ess-data` volume at `/data/ess-robber-intel.sqlite`.
 - The container runs as the image's `node` user and restarts unless you stop it.
 - `docker stop` sends SIGTERM, so the server gets up to 10 s to finish a sync, inside the 15 s stop grace period.
-- Every page needs a signed-in Account. Set `ESS_PORT` in `ops/home-server/.env` on the host to use another host port, and point `tailscale funnel` at it.
+- Every page needs a signed-in Account. The server is not reachable on the LAN or the host directly; use the public URL.
