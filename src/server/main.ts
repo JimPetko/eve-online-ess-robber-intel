@@ -23,7 +23,12 @@ const scheduler = startScheduler({
 
 // Same relative path from src/server and dist/server.
 const webRoot = fileURLToPath(new URL("../../dist/web", import.meta.url));
-const app = buildApp({ db, nextPullAt: () => scheduler.nextKillsPollAt(), webRoot });
+const app = buildApp({
+  db,
+  nextPullAt: () => scheduler.nextKillsPollAt(),
+  webRoot,
+  trustProxy: process.env.TRUST_PROXY === "1",
+});
 const address = await app.listen({ port, host });
 console.log(`Listening on ${address}`);
 

@@ -10,9 +10,9 @@ import type {
 } from "../../domain/index.ts";
 import { transaction } from "./db.ts";
 
-type Row = Record<string, SQLOutputValue>;
+export type Row = Record<string, SQLOutputValue>;
 
-function num(row: Row, key: string): number {
+export function num(row: Row, key: string): number {
   const value = row[key];
   if (typeof value !== "number") throw new Error(`column ${key}: expected number, got ${typeof value}`);
   return value;
@@ -22,7 +22,7 @@ function numOrNull(row: Row, key: string): number | null {
   return row[key] === null ? null : num(row, key);
 }
 
-function str(row: Row, key: string): string {
+export function str(row: Row, key: string): string {
   const value = row[key];
   if (typeof value !== "string") throw new Error(`column ${key}: expected string, got ${typeof value}`);
   return value;

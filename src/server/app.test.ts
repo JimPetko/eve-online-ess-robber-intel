@@ -18,6 +18,9 @@ import {
 import { buildApp } from "./app.ts";
 import { openDb } from "./store/db.ts";
 import { finishSyncRun, recordKillSnapshot, replaceSovereignty, startSyncRun, upsertRegionTree } from "./store/store.ts";
+import { addAccount, signIn } from "./test-support.ts";
+
+const ROBBER = "Robber One";
 
 const HOUR = 3_600_000;
 /** The latest pull. */
@@ -100,6 +103,7 @@ function seed() {
     { systemId: FACTION, allianceId: null, factionId: SERPENTIS },
     { systemId: STAIN_SYSTEM, allianceId: null, factionId: SERPENTIS },
   ]);
+  addAccount(db, ROBBER, "robber");
   return db;
 }
 
@@ -121,8 +125,13 @@ function app(db = seed(), options: { webRoot?: string } = {}) {
   return instance;
 }
 
+const cookies = new WeakMap<ReturnType<typeof app>, Promise<string>>();
+
+/** A GET as a signed-in Robber, signing in once per app. */
 async function get(instance: ReturnType<typeof app>, url: string) {
-  return instance.inject({ method: "GET", url });
+  const cookie = cookies.get(instance) ?? signIn(instance, ROBBER);
+  cookies.set(instance, cookie);
+  return instance.inject({ method: "GET", url, headers: { cookie: await cookie } });
 }
 
 test("GET /api/health reports ok", async () => {

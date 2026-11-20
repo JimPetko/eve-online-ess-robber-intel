@@ -15,6 +15,7 @@
     "build:web": "vite build",
     "start": "node dist/server/main.js",
     "sync:universe": "node src/server/sync/universe-cli.ts",
+    "accounts:create-admin": "node dist/server/accounts-cli.js create-admin",
     "typecheck": "tsc -p tsconfig.json && tsc -p src/domain && tsc -p src/server && tsc -p src/web",
     "lint": "eslint .",
     "test": "vitest run"
