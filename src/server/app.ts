@@ -6,6 +6,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { regionId, type RegionList } from "../domain/index.ts";
 import { enforceAccess } from "./auth/access.ts";
 import { auditLog } from "./auth/audit.ts";
+import { createHashingLimit } from "./auth/hashing-limit.ts";
 import { refuseForeignOrigins } from "./auth/origin.ts";
 import { registerAuthRoutes } from "./auth/routes.ts";
 import { createSignInThrottle } from "./auth/throttle.ts";
@@ -58,7 +59,7 @@ export function buildApp({
 
   app.get("/api/health", { config: { access: "public" } }, () => ({ ok: true }));
 
-  registerAuthRoutes(app, { db, now, throttle: createSignInThrottle(now), audit });
+  registerAuthRoutes(app, { db, now, throttle: createSignInThrottle(now), hashing: createHashingLimit(), audit });
 
   app.get("/api/regions", { config: { access: "active" } }, (): RegionList => ({ regions: listNullsecRegions(db) }));
 

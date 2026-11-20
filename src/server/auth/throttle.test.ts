@@ -12,3 +12,21 @@ test("an attempt whose check throws counts as one failure and stops counting onc
   now = new Date(now.getTime() + 15 * 60_000);
   expect(await throttle.attempt("Admin", "203.0.113.7", () => Promise.resolve(true))).toBe(true);
 });
+
+test("50 attempts for one username started at once: 10 run and 40 are refused before any has failed", async () => {
+  const throttle = createSignInThrottle(() => new Date("2026-11-19T12:00:00Z"));
+  const checking = Promise.withResolvers<boolean>();
+  let ran = 0;
+  const attempts = Array.from({ length: 50 }, (_, i) =>
+    throttle.attempt("Admin", `198.51.100.${String(i)}`, () => {
+      ran++;
+      return checking.promise;
+    }),
+  );
+  checking.resolve(false);
+  const results = await Promise.all(attempts);
+
+  expect(ran).toBe(10);
+  expect(results.filter((result) => result === false)).toHaveLength(10);
+  expect(results.filter((result) => result !== false)).toEqual(Array<unknown>(40).fill({ retryAfterSeconds: 15 * 60 }));
+});

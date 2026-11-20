@@ -506,19 +506,47 @@ async function statusCounts(responses: Promise<{ statusCode: number }>[]): Promi
   return counts;
 }
 
-test("50 wrong sign-ins for one username sent at once get 10 401s and 40 429s", async () => {
-  const { app } = setup();
+test("50 wrong sign-ins for one username sent at once: 4 are checked and 46 told the server is busy, which is no failure", async () => {
+  const { app, call } = setup();
   const attempts = Array.from({ length: 50 }, (_, i) =>
     app.inject({ method: "POST", url: "/api/session", remoteAddress: `198.51.100.${String(i)}`, payload: wrongPassword("Admin") }),
   );
-  expect(await statusCounts(attempts)).toEqual({ 401: 10, 429: 40 });
+  expect(await statusCounts(attempts)).toEqual({ 401: 4, 503: 46 });
+
+  for (let i = 0; i < 6; i++) expect((await call("POST", "/api/session", undefined, wrongPassword("Admin"))).statusCode).toBe(401);
+  expect((await call("POST", "/api/session", undefined, wrongPassword("Admin"))).statusCode).toBe(429);
 });
 
-test("50 wrong current passwords sent at once get 10 401s and 40 429s", async () => {
+test("a flood of sign-ins for different usernames from different IPs, which the throttle cannot stop, hashes 4 at a time", async () => {
+  const { app } = setup();
+  const flood = await Promise.all(
+    Array.from({ length: 8 }, (_, i) =>
+      app.inject({ method: "POST", url: "/api/session", remoteAddress: `198.51.100.${String(i)}`, payload: wrongPassword(`guess${String(i)}`) }),
+    ),
+  );
+  expect(flood.map((res) => res.statusCode).sort()).toEqual([401, 401, 401, 401, 503, 503, 503, 503]);
+  const refused = flood.find((res) => res.statusCode === 503);
+  expect([refused?.headers["retry-after"], refused?.json()]).toEqual(["1", authError("busy")]);
+
+  // Every slot is free again once the flood has been answered.
+  await Promise.all(Array.from({ length: 4 }, () => signIn(app, "Admin")));
+});
+
+test("50 wrong current passwords sent at once: 4 are checked and 46 told the server is busy", async () => {
   const { app, call } = setup();
   const cookie = await signIn(app, "Admin");
   const attempts = Array.from({ length: 50 }, () => call("POST", "/api/session/password", cookie, wrongCurrentPassword));
-  expect(await statusCounts(attempts)).toEqual({ 401: 10, 429: 40 });
+  expect(await statusCounts(attempts)).toEqual({ 401: 4, 503: 46 });
+});
+
+test("8 Accounts created at once: 4 are created and 4 told the server is busy", async () => {
+  const { app, call } = setup();
+  const admin = await signIn(app, "Admin");
+  const creates = Array.from({ length: 8 }, (_, i) =>
+    call("POST", "/api/accounts", admin, { username: `Robber ${String(i)}`, password: "temp-pass", role: "robber" }),
+  );
+  expect(await statusCounts(creates)).toEqual({ 201: 4, 503: 4 });
+  expect((await call("GET", "/api/accounts", admin)).json<AccountList>().accounts).toHaveLength(5);
 });
 
 test("a failed sign-in is audited with the username and IP, and never the password", async () => {

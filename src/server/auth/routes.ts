@@ -21,6 +21,7 @@ import {
 } from "../store/accounts.ts";
 import { refuse, send, sessionView, signedInAs, type Refusal } from "./access.ts";
 import type { Audit } from "./audit.ts";
+import type { HashingLimit } from "./hashing-limit.ts";
 import { DUMMY_HASH, hashPassword, verifyPassword } from "./password.ts";
 import { newSessionToken, SESSION_LIFETIME_MS, sessionCookie, tokenHash } from "./session-cookie.ts";
 import type { SignInThrottle } from "./throttle.ts";
@@ -69,10 +70,11 @@ export interface AuthRouteDeps {
   readonly db: DatabaseSync;
   readonly now: () => Date;
   readonly throttle: SignInThrottle;
+  readonly hashing: HashingLimit;
   readonly audit: Audit;
 }
 
-export function registerAuthRoutes(app: FastifyInstance, { db, now, throttle, audit }: AuthRouteDeps): void {
+export function registerAuthRoutes(app: FastifyInstance, { db, now, throttle, hashing, audit }: AuthRouteDeps): void {
   const secure = (request: FastifyRequest) => request.protocol === "https";
 
   function startSession(request: FastifyRequest, reply: FastifyReply, account: StoredAccount): SessionView {
@@ -93,6 +95,11 @@ export function registerAuthRoutes(app: FastifyInstance, { db, now, throttle, au
     return send(reply, refuse(429, "tooManyAttempts", "Too many wrong passwords. Try again later."));
   }
 
+  function busy(reply: FastifyReply) {
+    void reply.header("retry-after", "1");
+    return send(reply, refuse(503, "busy", "The server is busy checking other passwords. Try again in a moment."));
+  }
+
   app.get(
     "/api/session",
     { config: { access: "public" } },
@@ -106,14 +113,17 @@ export function registerAuthRoutes(app: FastifyInstance, { db, now, throttle, au
     }
     const account = accountByUsername(db, username);
     // An unknown username verifies against a dummy hash so it takes as long as a wrong password.
-    const verified = await throttle.attempt(
-      username,
-      request.ip,
-      async () =>
-        password.length <= PASSWORD_RULE.maxLength &&
-        (await verifyPassword(password, account?.passwordHash ?? DUMMY_HASH)) &&
-        account !== null,
+    const verified = await hashing.run(() =>
+      throttle.attempt(
+        username,
+        request.ip,
+        async () =>
+          password.length <= PASSWORD_RULE.maxLength &&
+          (await verifyPassword(password, account?.passwordHash ?? DUMMY_HASH)) &&
+          account !== null,
+      ),
     );
+    if (verified === "busy") return busy(reply);
     const { ip } = request;
     if (typeof verified !== "boolean") {
       audit({ event: "signInThrottled", username, ip });
@@ -145,13 +155,17 @@ export function registerAuthRoutes(app: FastifyInstance, { db, now, throttle, au
     if (newPassword === currentPassword) {
       return send(reply, refuse(400, "weakPassword", "Choose a password different from your current one."));
     }
-    // Shares sign-in's counters, so a stolen session cookie cannot guess the password without limit.
-    const verified = await throttle.attempt(account.username, request.ip, () =>
-      verifyPassword(currentPassword, account.passwordHash),
-    );
-    if (typeof verified !== "boolean") return tooManyAttempts(reply, verified.retryAfterSeconds);
-    if (!verified) return send(reply, refuse(401, "invalidCredentials", "Your current password is wrong."));
-    const passwordHash = await hashPassword(newPassword);
+    const changed = await hashing.run(async () => {
+      // Shares sign-in's counters, so a stolen session cookie cannot guess the password without limit.
+      const verified = await throttle.attempt(account.username, request.ip, () =>
+        verifyPassword(currentPassword, account.passwordHash),
+      );
+      return verified === true ? { passwordHash: await hashPassword(newPassword) } : verified;
+    });
+    if (changed === "busy") return busy(reply);
+    if (changed === false) return send(reply, refuse(401, "invalidCredentials", "Your current password is wrong."));
+    if ("retryAfterSeconds" in changed) return tooManyAttempts(reply, changed.retryAfterSeconds);
+    const { passwordHash } = changed;
     replacePassword(db, account.id, passwordHash);
     audit({ event: "passwordChanged", username: account.username, ip: request.ip });
     return startSession(request, reply, { ...account, passwordHash, mustChangePassword: false });
@@ -160,7 +174,8 @@ export function registerAuthRoutes(app: FastifyInstance, { db, now, throttle, au
   app.get("/api/accounts", { config: { access: "admin" } }, (): AccountList => listAccounts(db));
 
   app.post("/api/accounts", { config: { access: "admin" } }, async (request, reply) => {
-    const created = await createAccount(db, request.body, now());
+    const created = await hashing.run(() => createAccount(db, request.body, now()));
+    if (created === "busy") return busy(reply);
     if ("status" in created) return send(reply, created);
     const by = signedInAs(request).account.username;
     audit({ event: "accountCreated", username: created.username, role: created.role, by, ip: request.ip });
