@@ -8,8 +8,10 @@ From a clean checkout of `main`, in Git Bash or any POSIX shell:
 
 ```sh
 git pull
-ops/home-server/deploy.sh jpetko@192.168.0.187
+ops/home-server/deploy.sh user@home-server
 ```
+
+`user@home-server` is your SSH login on the Docker host.
 
 `deploy.sh` does four things:
 1. Copies `git archive HEAD` over SSH into `~/ess-robber-intel` on the host, replacing the previous copy. The deployed commit is in `~/ess-robber-intel/DEPLOYED_COMMIT`.
@@ -32,7 +34,7 @@ To carry history over from another install, make a consistent copy with SQLite's
 ```sh
 node -e 'require("node:sqlite").backup(new (require("node:sqlite").DatabaseSync)(process.argv[1], { readOnly: true }), process.argv[2])' \
   C:/ProgramData/ess-robber-intel/data/ess-robber-intel.sqlite seed.sqlite
-ops/home-server/deploy.sh jpetko@192.168.0.187 --seed-db seed.sqlite
+ops/home-server/deploy.sh user@home-server --seed-db seed.sqlite
 ```
 
 ## First Admin
