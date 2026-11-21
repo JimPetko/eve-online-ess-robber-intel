@@ -20,7 +20,7 @@ The script runs `npm ci` and `npm run build` as you, installs [NSSM](https://nss
 | Server log (rotated at service start once over 10 MB) | `C:\ProgramData\ess-robber-intel\logs\server.log` |
 | Last install log | `C:\ProgramData\ess-robber-intel\logs\install.log` |
 
-- The UI is at http://127.0.0.1:3917. Change it with `-Port` and `-BindHost`. Binding beyond localhost exposes the UI to your network, since it has no login.
+- The UI is at http://127.0.0.1:3917. Change it with `-Port` and `-BindHost`. It serves plain HTTP, so keep it on localhost, or put an HTTPS proxy in front before binding it wider: over HTTP, passwords and session cookies cross the network readable.
 - The service runs as its own virtual account, `NT SERVICE\EssRobberIntel`, which can write only to the ProgramData folder.
 - It starts automatically (delayed) and NSSM restarts it 10 s after a crash.
 - Stopping sends Ctrl+C, so the server finishes a sync in progress (up to 10 s) before it exits.
