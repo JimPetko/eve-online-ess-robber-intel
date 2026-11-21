@@ -37,6 +37,19 @@ node -e 'require("node:sqlite").backup(new (require("node:sqlite").DatabaseSync)
 ops/home-server/deploy.sh user@home-server --seed-db seed.sqlite
 ```
 
+## Reading the database on your PC
+
+SQLite is a file, not a server, so there is no connection string to the host. Pull a consistent copy instead; the server keeps running:
+
+```sh
+ops/home-server/snapshot-db.sh user@home-server              # writes ./ess-robber-intel.sqlite
+ops/home-server/snapshot-db.sh user@home-server --out ~/ess.sqlite
+```
+
+Open the file in any SQLite client (Beekeeper Studio: connection type **SQLite**, pick the file, turn on read-only). Run the script again for newer data. Times are milliseconds since 1970: `datetime(pulled_at/1000, 'unixepoch')`.
+
+The copy holds password and session hashes. Keep it out of the repo (`*.sqlite` is git-ignored) and shared folders, and delete it when done. Edits to it never reach the live site.
+
 ## First Admin
 
 Every page needs a signed-in Account. Create the first Admin once, on the host, after the first deploy. The password is read from stdin, so it is not in the repo, the image or the shell history (the leading space keeps it out of bash history):
