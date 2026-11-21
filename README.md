@@ -41,7 +41,7 @@ The server reads these environment variables:
 | `PORT` | `3000` | Port to listen on. `npm run dev` also points the Vite proxy at it. |
 | `HOST` | `127.0.0.1` | Address to bind. |
 | `DB_PATH` | `data/ess-robber-intel.sqlite` | SQLite file. The server creates its folder. |
-| `TRUST_PROXY` | unset | Set to `1` when one HTTPS reverse proxy sits directly in front. The server then trusts only the last `X-Forwarded-For` and `X-Forwarded-Proto` entry, the one that proxy appended: the sign-in throttle counts that client IP, and the session cookie is marked `Secure`. A chain of proxies is not supported. |
+| `TRUST_PROXY` | unset | Set to `1` when one HTTPS reverse proxy sits directly in front. The server then trusts only the last `X-Forwarded-For` and `X-Forwarded-Proto` entry, the one that proxy appended: the sign-in throttle counts that client IP, and a request that reached the proxy over HTTPS gets a `Secure` session cookie and `Strict-Transport-Security`. A chain of proxies is not supported. |
 
 ## Accounts
 
@@ -57,6 +57,17 @@ echo 'temporary-password' | npm run accounts:create-admin -- "Frank Wiggles"
 Every Account, the first Admin included, must replace its password at first sign-in. After that an Admin opens **Accounts** to create Accounts with a temporary password, and to delete Robber Accounts. No one can delete an Admin. Deleting an Account signs it out at once.
 
 Serve it over HTTPS before publishing it: over plain HTTP, passwords and session cookies cross the network readable.
+
+What the server does to stand on the open internet:
+
+- **Sessions** end 30 days after sign-in, or after 7 days unused, whichever comes first. Use is recorded at most hourly, so the idle end can come up to an hour early. Changing a password signs out every other session of that Account.
+- **Passwords** an Account chooses are at least 12 characters, must not contain its username, and must not be one of the 100 most common long passwords. An Admin's temporary password needs only 8 characters, since it must be replaced at first sign-in.
+- **Guessing** is throttled: 10 wrong passwords for a username, or from an IP, within 15 minutes refuse further tries with 429 until the oldest leaves the window. At most 4 passwords are hashed or checked at once server-wide (each scrypt holds about 32 MiB), so beyond that sign-in, password changes and Account creation answer 503 with `Retry-After: 1`.
+- **Other sites** cannot act for a signed-in browser: the session cookie is `SameSite=Strict`, and a `POST`, `PUT`, `PATCH` or `DELETE` to `/api` whose `Origin` names another host answers 403.
+- **Headers** on every response: a Content-Security-Policy allowing only this origin's scripts, styles and connections (plus `data:` images, for the favicon), no framing, `nosniff`, `no-referrer`, same-origin opener and resource policies, and a Permissions-Policy that denies camera, microphone and geolocation. API responses are `Cache-Control: no-store`. Requests that arrived over HTTPS also get `Strict-Transport-Security: max-age=31536000`.
+- **Audit log**: each sign-in (succeeded, failed or throttled), password change, Account creation or deletion, and refused `Origin` writes one line to the server log, `audit {"at":…,"event":…,"username":…,"ip":…}`. No password, token or hash is ever logged. Find them with `docker compose logs server | grep '^audit '`.
+
+The proxy must pass the public host on, as `Host` or `X-Forwarded-Host`; otherwise the `Origin` check refuses every sign-in from a browser. Caddy and Cloudflare Tunnel do by default; nginx needs `proxy_set_header Host $host;`.
 
 ## What to expect on first run
 

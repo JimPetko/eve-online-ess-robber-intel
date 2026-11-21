@@ -104,6 +104,23 @@ const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX IF NOT EXISTS sessions_account ON sessions(account_id);
   `,
+  // Sessions also end after 7 days unused, so each records when it was last used. Sessions from
+  // before count as used now. Rebuilt rather than altered so the step can rerun on a newer schema.
+  `
+  DROP TABLE IF EXISTS sessions_new;
+  CREATE TABLE sessions_new (
+    token_hash   TEXT PRIMARY KEY,
+    account_id   INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    created_at   TEXT NOT NULL,
+    expires_at   TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL
+  );
+  INSERT INTO sessions_new (token_hash, account_id, created_at, expires_at, last_seen_at)
+    SELECT token_hash, account_id, created_at, expires_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now') FROM sessions;
+  DROP TABLE sessions;
+  ALTER TABLE sessions_new RENAME TO sessions;
+  CREATE INDEX sessions_account ON sessions(account_id);
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

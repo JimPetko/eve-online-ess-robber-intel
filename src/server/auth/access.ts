@@ -10,6 +10,9 @@ import { sessionToken, tokenHash } from "./session-cookie.ts";
  */
 export type Access = "public" | "signedIn" | "active" | "admin";
 
+/** `/api`, `/api/...` or `/api?...`: the paths whose routes must declare an access level. */
+export const isApiUrl = (url: string): boolean => /^\/api(?:[/?]|$)/.test(url);
+
 export interface SignedIn {
   readonly tokenHash: string;
   readonly account: StoredAccount;
@@ -25,7 +28,7 @@ declare module "fastify" {
 }
 
 export interface Refusal {
-  readonly status: 400 | 401 | 403 | 404 | 409 | 429;
+  readonly status: 400 | 401 | 403 | 404 | 409 | 429 | 503;
   readonly body: AuthError;
 }
 

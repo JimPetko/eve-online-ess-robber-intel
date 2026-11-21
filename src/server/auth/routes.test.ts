@@ -10,7 +10,8 @@ import { buildApp } from "../app.ts";
 import { openDb } from "../store/db.ts";
 import { addAccount, PASSWORD, signIn } from "../test-support.ts";
 
-const DAY = 24 * 3_600_000;
+const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
 const T0 = new Date("2026-11-19T12:00:00Z");
 const NEW_PASSWORD = "a brand new passphrase";
 
@@ -23,7 +24,8 @@ function setup(options: { trustProxy?: boolean } = {}) {
   const db = openDb(":memory:");
   const admin = addAccount(db, "Admin", "admin");
   let now = T0;
-  const app = buildApp({ db, nextPullAt: () => null, now: () => now, ...options });
+  const auditLines: string[] = [];
+  const app = buildApp({ db, nextPullAt: () => null, now: () => now, logAudit: (line) => auditLines.push(line), ...options });
   apps.push(app);
   const call = (method: "GET" | "POST" | "DELETE", url: string, cookie?: string, payload?: unknown) =>
     app.inject({
@@ -41,6 +43,9 @@ function setup(options: { trustProxy?: boolean } = {}) {
       now = new Date(now.getTime() + ms);
     },
     session: async (cookie?: string) => (await call("GET", "/api/session", cookie)).json<SessionView>(),
+    auditLines,
+    /** The audit lines written since the last call, each parsed from its `audit {json}` form. */
+    audited: () => auditLines.splice(0).map((line) => JSON.parse(line.replace(/^audit /, "")) as unknown),
   };
 }
 
@@ -147,11 +152,43 @@ test("a session ends 30 days after sign-in however much it is used", async () =>
   const { app, call, admin, session, advance } = setup();
   const cookie = await signIn(app, "Admin");
 
-  advance(30 * DAY - 1);
+  for (let day = 6; day < 30; day += 6) {
+    advance(6 * DAY);
+    expect(await session(cookie)).toEqual({ status: "active", account: admin });
+  }
+  advance(6 * DAY - 1);
   expect(await session(cookie)).toEqual({ status: "active", account: admin });
   advance(1);
   expect(await session(cookie)).toEqual({ status: "signedOut" });
   expect((await call("GET", "/api/regions", cookie)).json()).toEqual(authError("signInRequired"));
+});
+
+test("a session unused for 7 days ends and answers like one that never existed, while a used one goes on", async () => {
+  const { app, call, admin, session, advance } = setup();
+  const used = await signIn(app, "Admin");
+  const unused = await signIn(app, "Admin");
+
+  advance(7 * DAY - 1);
+  expect(await session(used)).toEqual({ status: "active", account: admin });
+  advance(1);
+  expect(await session(unused)).toEqual({ status: "signedOut" });
+  expect((await call("GET", "/api/regions", unused)).json()).toEqual(authError("signInRequired"));
+  advance(7 * DAY - 2);
+  expect(await session(used)).toEqual({ status: "active", account: admin });
+});
+
+test("use is recorded at most hourly, so a session last used within an hour of its previous use may end up to an hour early", async () => {
+  const { app, admin, session, advance } = setup();
+  const early = await signIn(app, "Admin");
+  const hourly = await signIn(app, "Admin");
+
+  advance(HOUR - 1);
+  await session(early);
+  advance(1);
+  await session(hourly);
+  advance(7 * DAY - HOUR);
+  expect(await session(early)).toEqual({ status: "signedOut" });
+  expect(await session(hourly)).toEqual({ status: "active", account: admin });
 });
 
 test("Regions need an active session: 401 signed out, 403 while the password must change", async () => {
@@ -249,6 +286,8 @@ test.each([
   ["a new password of 11 characters", { currentPassword: PASSWORD, newPassword: "x".repeat(11) }, 400, "weakPassword"],
   ["a new password of 257 characters", { currentPassword: PASSWORD, newPassword: "x".repeat(257) }, 400, "weakPassword"],
   ["the current password again", { currentPassword: PASSWORD, newPassword: PASSWORD }, 400, "weakPassword"],
+  ["a new password holding the username in another case", { currentPassword: PASSWORD, newPassword: "my ADMIN passphrase" }, 400, "weakPassword"],
+  ["one of the most common passwords, in another case", { currentPassword: PASSWORD, newPassword: "Password1234" }, 400, "weakPassword"],
   ["a body that is not an object", [PASSWORD, NEW_PASSWORD], 400, "invalidCredentials"],
 ])("changing a password refuses %s and keeps the old one", async (_, payload, status, code) => {
   const { app, call, session } = setup();
@@ -258,6 +297,25 @@ test.each([
   expect([res.statusCode, res.json()]).toEqual([status, authError(code as AuthErrorCode)]);
   expect((await session(cookie)).status).toBe("active");
   await signIn(app, "Admin", PASSWORD);
+});
+
+test("a refused new password says why: it holds the username, or it is too common", async () => {
+  const { app, call } = setup();
+  const cookie = await signIn(app, "Admin");
+  const refusal = async (newPassword: string) =>
+    (await call("POST", "/api/session/password", cookie, { currentPassword: PASSWORD, newPassword })).json<{ message: string }>().message;
+
+  expect(await refusal("admin's passphrase")).toMatch(/username/);
+  expect(await refusal("qwerty123456")).toMatch(/most common/);
+});
+
+test("an Admin may set a temporary password that holds the username or is common, since it must be replaced", async () => {
+  const { app, call } = setup();
+  const admin = await signIn(app, "Admin");
+  const create = (username: string, password: string) => call("POST", "/api/accounts", admin, { username, password, role: "robber" });
+
+  expect((await create("Robber", "robber-temp")).statusCode).toBe(201);
+  expect((await create("Ratter", "password1234")).statusCode).toBe(201);
 });
 
 test.each([12, 256])("a new password may be exactly %i characters", async (length) => {
@@ -502,17 +560,130 @@ async function statusCounts(responses: Promise<{ statusCode: number }>[]): Promi
   return counts;
 }
 
-test("50 wrong sign-ins for one username sent at once get 10 401s and 40 429s", async () => {
-  const { app } = setup();
+test("50 wrong sign-ins for one username sent at once: 4 are checked and 46 told the server is busy, which is no failure", async () => {
+  const { app, call } = setup();
   const attempts = Array.from({ length: 50 }, (_, i) =>
     app.inject({ method: "POST", url: "/api/session", remoteAddress: `198.51.100.${String(i)}`, payload: wrongPassword("Admin") }),
   );
-  expect(await statusCounts(attempts)).toEqual({ 401: 10, 429: 40 });
+  expect(await statusCounts(attempts)).toEqual({ 401: 4, 503: 46 });
+
+  for (let i = 0; i < 6; i++) expect((await call("POST", "/api/session", undefined, wrongPassword("Admin"))).statusCode).toBe(401);
+  expect((await call("POST", "/api/session", undefined, wrongPassword("Admin"))).statusCode).toBe(429);
 });
 
-test("50 wrong current passwords sent at once get 10 401s and 40 429s", async () => {
+test("a flood of sign-ins for different usernames from different IPs, which the throttle cannot stop, hashes 4 at a time", async () => {
+  const { app } = setup();
+  const flood = await Promise.all(
+    Array.from({ length: 8 }, (_, i) =>
+      app.inject({ method: "POST", url: "/api/session", remoteAddress: `198.51.100.${String(i)}`, payload: wrongPassword(`guess${String(i)}`) }),
+    ),
+  );
+  expect(flood.map((res) => res.statusCode).sort()).toEqual([401, 401, 401, 401, 503, 503, 503, 503]);
+  const refused = flood.find((res) => res.statusCode === 503);
+  expect([refused?.headers["retry-after"], refused?.json()]).toEqual(["1", authError("busy")]);
+
+  // Every slot is free again once the flood has been answered.
+  await Promise.all(Array.from({ length: 4 }, () => signIn(app, "Admin")));
+});
+
+test("50 wrong current passwords sent at once: 4 are checked and 46 told the server is busy", async () => {
   const { app, call } = setup();
   const cookie = await signIn(app, "Admin");
   const attempts = Array.from({ length: 50 }, () => call("POST", "/api/session/password", cookie, wrongCurrentPassword));
-  expect(await statusCounts(attempts)).toEqual({ 401: 10, 429: 40 });
+  expect(await statusCounts(attempts)).toEqual({ 401: 4, 503: 46 });
+});
+
+test("8 Accounts created at once: 4 are created and 4 told the server is busy", async () => {
+  const { app, call } = setup();
+  const admin = await signIn(app, "Admin");
+  const creates = Array.from({ length: 8 }, (_, i) =>
+    call("POST", "/api/accounts", admin, { username: `Robber ${String(i)}`, password: "temp-pass", role: "robber" }),
+  );
+  expect(await statusCounts(creates)).toEqual({ 201: 4, 503: 4 });
+  expect((await call("GET", "/api/accounts", admin)).json<AccountList>().accounts).toHaveLength(5);
+});
+
+test("a failed sign-in is audited with the username and IP, and never the password", async () => {
+  const { app, audited, auditLines } = setup();
+  await app.inject({ method: "POST", url: "/api/session", remoteAddress: "203.0.113.7", payload: { username: "admin", password: "hunter2 guess" } });
+
+  expect(auditLines.join("\n")).not.toContain("hunter2");
+  expect(audited()).toEqual([{ at: T0.toISOString(), event: "signInFailed", username: "admin", ip: "203.0.113.7" }]);
+});
+
+test("sign-ins, throttled sign-ins and password changes are audited", async () => {
+  const { app, call, audited } = setup();
+  const cookie = await signIn(app, "admin");
+  expect(audited()).toEqual([{ at: T0.toISOString(), event: "signInSucceeded", username: "Admin", ip: "127.0.0.1" }]);
+
+  await call("POST", "/api/session/password", cookie, { currentPassword: PASSWORD, newPassword: NEW_PASSWORD });
+  expect(audited()).toEqual([{ at: T0.toISOString(), event: "passwordChanged", username: "Admin", ip: "127.0.0.1" }]);
+
+  for (let i = 0; i < 11; i++) await call("POST", "/api/session", undefined, { username: "Admin", password: "not the password" });
+  expect(audited().slice(-2)).toEqual([
+    { at: T0.toISOString(), event: "signInFailed", username: "Admin", ip: "127.0.0.1" },
+    { at: T0.toISOString(), event: "signInThrottled", username: "Admin", ip: "127.0.0.1" },
+  ]);
+});
+
+test("creating and deleting an Account are audited with the Admin who did it", async () => {
+  const { app, call, audited } = setup();
+  const admin = await signIn(app, "Admin");
+  const created = await call("POST", "/api/accounts", admin, { username: "New Robber", password: "temp-pass", role: "robber" });
+  const { id } = created.json<AccountView>();
+  await call("DELETE", `/api/accounts/${String(id)}`, admin);
+
+  expect(audited().slice(1)).toEqual([
+    { at: T0.toISOString(), event: "accountCreated", username: "New Robber", role: "robber", by: "Admin", ip: "127.0.0.1" },
+    { at: T0.toISOString(), event: "accountDeleted", accountId: id, by: "Admin", ip: "127.0.0.1" },
+  ]);
+});
+
+const signInFrom = (headers: Record<string, string>, remoteAddress = "127.0.0.1") =>
+  ({ method: "POST", url: "/api/session", remoteAddress, headers, payload: { username: "Admin", password: PASSWORD } }) as const;
+
+test.each([
+  ["another site", "https://evil.example"],
+  ["the same host on another scheme's port", "https://ess.example:8443"],
+  ['"null"', "null"],
+])("a sign-in sent from %s is refused with 403 and audited, and signs nothing in", async (_, origin) => {
+  const { app, audited } = setup();
+  const res = await app.inject(signInFrom({ host: "ess.example", origin }, "203.0.113.7"));
+
+  expect([res.statusCode, res.json()]).toEqual([403, authError("forbiddenOrigin")]);
+  expect(res.headers["set-cookie"]).toBeUndefined();
+  expect(audited()).toEqual([
+    { at: T0.toISOString(), event: "forbiddenOrigin", origin, method: "POST", url: "/api/session", ip: "203.0.113.7" },
+  ]);
+});
+
+test("a sign-in from the page's own origin, or with no Origin at all, goes through", async () => {
+  const { app } = setup();
+  expect((await app.inject(signInFrom({ host: "ess.example", origin: "https://ess.example" }))).statusCode).toBe(200);
+  expect((await app.inject(signInFrom({ host: "ESS.example:3000", origin: "http://ess.example:3000" }))).statusCode).toBe(200);
+  expect((await app.inject(signInFrom({ host: "ess.example" }))).statusCode).toBe(200);
+});
+
+test("behind a trusted proxy, the Origin must match the host the proxy forwarded", async () => {
+  const { app } = setup({ trustProxy: true });
+  const forwarded = { host: "127.0.0.1:3000", "x-forwarded-host": "ess.example", "x-forwarded-proto": "https" };
+  expect((await app.inject(signInFrom({ ...forwarded, origin: "https://ess.example" }))).statusCode).toBe(200);
+  expect((await app.inject(signInFrom({ ...forwarded, origin: "http://127.0.0.1:3000" }))).statusCode).toBe(403);
+});
+
+test("a foreign Origin cannot sign a session out, but may read", async () => {
+  const { app, admin } = setup();
+  const cookie = await signIn(app, "Admin");
+  const headers = { cookie, origin: "https://evil.example" };
+
+  const signOut = await app.inject({ method: "DELETE", url: "/api/session", headers });
+  expect([signOut.statusCode, signOut.json()]).toEqual([403, authError("forbiddenOrigin")]);
+  const read = await app.inject({ method: "GET", url: "/api/session", headers });
+  expect([read.statusCode, read.json()]).toEqual([200, { status: "active", account: admin }]);
+});
+
+test("a huge sign-in username is audited cut short", async () => {
+  const { call, audited } = setup();
+  await call("POST", "/api/session", undefined, { username: "x".repeat(100_000), password: "whatever" });
+  expect(audited()).toEqual([expect.objectContaining({ event: "signInFailed", username: "x".repeat(200) })]);
 });

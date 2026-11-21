@@ -53,7 +53,11 @@ export type AuthErrorCode =
   | "invalidRole"
   | "usernameTaken"
   | "cannotDeleteAdmin"
-  | "accountNotFound";
+  | "accountNotFound"
+  /** A state-changing request sent by a browser from another site. */
+  | "forbiddenOrigin"
+  /** Too many passwords are being checked at once; retry after the Retry-After seconds. */
+  | "busy";
 export type AuthError = { readonly error: AuthErrorCode; readonly message: string };
 
 export const USERNAME_RULE = {

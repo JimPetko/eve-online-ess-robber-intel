@@ -120,7 +120,7 @@ afterEach(async () => {
 });
 
 function app(db = seed(), options: { webRoot?: string } = {}) {
-  const instance = buildApp({ db, nextPullAt: () => NEXT_PULL, ...options });
+  const instance = buildApp({ db, nextPullAt: () => NEXT_PULL, logAudit: () => undefined, ...options });
   apps.push(instance);
   return instance;
 }
