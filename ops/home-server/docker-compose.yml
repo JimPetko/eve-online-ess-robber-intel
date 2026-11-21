@@ -5,13 +5,12 @@ services:
     build: ../..
     image: ess-robber-intel
     restart: unless-stopped
-    ports:
-      # The UI has no login: this publishes it to the LAN. Use "127.0.0.1:3917:3917" to keep it on the host.
-      - "${ESS_PORT:-3917}:3917"
+    # No published port: the tailscale service below is the only way in, so no client can skip it
+    # and forge X-Forwarded-For.
     environment:
       TZ: UTC
-      # Set TRUST_PROXY=1 in .env only when an HTTPS reverse proxy is the sole way in (see README).
-      TRUST_PROXY: ${TRUST_PROXY:-}
+      # Trust the one proxy in front (the tailscale service) for the client IP and https.
+      TRUST_PROXY: ${TRUST_PROXY:-1}
     volumes:
       - ess-data:/data
     # main.ts waits up to 10 s for a sync in progress.
@@ -22,5 +21,30 @@ services:
         max-size: 10m
         max-file: "3"
 
+  # Joins the tailnet as its own machine and publishes the server through Funnel at
+  # https://ess-robber-intel.tail719253.ts.net. Userspace networking, so it needs no extra privileges.
+  tailscale:
+    image: tailscale/tailscale:v1.104.7@sha256:72c1e19e0aedca96b8533bbb0b4368564410ff20b17e53b804eb6c1f04a31be4
+    hostname: ess-robber-intel
+    restart: unless-stopped
+    environment:
+      TS_HOSTNAME: ess-robber-intel
+      # Optional. Without it, the first start logs a sign-in link instead (see README).
+      TS_AUTHKEY: ${TS_AUTHKEY:-}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "true"
+      TS_SERVE_CONFIG: /config/serve.json
+    volumes:
+      - ts-state:/var/lib/tailscale
+      - ./tailscale-serve.json:/config/serve.json:ro
+    depends_on:
+      - server
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
 volumes:
   ess-data:
+  ts-state:
