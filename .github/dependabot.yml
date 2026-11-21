@@ -4,6 +4,14 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # @types/node must describe the oldest supported runtime (Node 24), or code using newer
+      # APIs type-checks and then fails at runtime. Move it with the Node upgrade.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # typescript-eslint pins a TypeScript peer range; bump both together by hand.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -14,3 +22,7 @@ updates:
       - /ops/calibration
     schedule:
       interval: weekly
+    ignore:
+      # Both images run repo code, and CI tests Node 24. Move CI and both Dockerfiles in one PR.
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
