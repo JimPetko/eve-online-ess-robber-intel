@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// The only sanctioned way to merge. GitHub branch protection is unavailable on this plan,
-// so this script is the gate. Usage: node scripts/merge-pr.mjs <pr-number>
+// The sanctioned way to merge: it merges the exact head commit it checked. Branch protection on
+// main requires the same checks. Usage: node scripts/merge-pr.mjs <pr-number>
 import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
-export const REQUIRED = ["check", "tests-required"];
+export const REQUIRED = ["check", "docker", "tests-required"];
 const PASSING = new Set(["SUCCESS", "SKIPPED", "NEUTRAL"]);
 
 /** Returns the reasons the PR may not merge; empty means it may. */
